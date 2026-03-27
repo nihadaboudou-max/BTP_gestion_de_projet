@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+HAIROU - Gestion BTP: A full-stack construction management platform. Built with React + Vite frontend, Express backend, PostgreSQL database, Socket.io for real-time, and JWT authentication.
 
 ## Stack
 
@@ -15,82 +15,75 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Auth**: JWT + bcrypt
+- **Real-time**: Socket.io
+- **Frontend**: React 18 + Vite + Tailwind CSS + Lucide Icons + Recharts
+
+## Default Credentials
+
+- **Admin**: admin@hairou.com / Admin2024!
+- **Chef de Chantier**: chef@hairou.com / Chef2024!
+- **Ouvrier**: ouvrier@hairou.com / Chef2024!
 
 ## Structure
 
 ```text
 artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
+├── artifacts/
+│   ├── api-server/         # Express API server (port 8080, /api)
+│   └── hairou-btp/         # React + Vite frontend (port 18255, /)
+├── lib/
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── scripts/                # Utility scripts
+└── package.json
 ```
 
-## TypeScript & Composite Projects
+## Modules
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
+1. **Authentication** - JWT, role-based (ADMIN, CHEF_CHANTIER, OUVRIER)
+2. **Dashboard** - KPIs, live activity feed, project summaries
+3. **Projects (Chantiers)** - Full CRUD, budget tracking
+4. **Tasks** - Linked to projects, priorities, assignment
+5. **Pointage** - Attendance/timesheet with electronic signature
+6. **Personnel** - Worker database with wage tracking
+7. **Expenses** - With admin validation workflow
+8. **Messages** - Real-time via Socket.io
+9. **Notifications** - Real-time, role-aware
+10. **Administration** - User management, permissions matrix
 
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+## Database Schema Tables
 
-## Root Scripts
+- users, projects, tasks, personnel, personnel_projects
+- pointage_sheets, pointage_entries
+- expenses, messages, notifications, activity_logs
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+## API Routes
 
-## Packages
+- `POST /api/auth/login` - Login
+- `GET /api/auth/me` - Current user
+- `POST /api/auth/refresh` - Refresh token
+- `GET/POST /api/users` - User management
+- `GET/POST /api/projects` - Projects
+- `GET/POST /api/tasks` - Tasks
+- `GET/POST /api/pointage` - Pointage sheets
+- `POST /api/pointage/:id/submit` - Submit sheet
+- `POST /api/pointage/:id/approve` - Approve/reject sheet
+- `GET/POST /api/personnel` - Personnel
+- `GET/POST /api/expenses` - Expenses
+- `POST /api/expenses/:id/validate` - Validate expense
+- `GET/POST /api/messages` - Messages
+- `GET /api/notifications` - Notifications
+- `GET /api/dashboard/stats` - Dashboard stats
+- `GET /api/activity` - Activity logs
 
-### `artifacts/api-server` (`@workspace/api-server`)
+## Color Palette
 
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+- Navy: #011638 (primary / sidebar)
+- Dark Green: #2E5339
+- Light Beige: #EAF0CE
+- Blue Gray: #7C98B3
+- Off White: #F4FFF8
+- Teal: #0B5563

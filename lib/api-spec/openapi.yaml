@@ -1,22 +1,41 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: HAIROU BTP Management Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User management
+  - name: projects
+    description: Project management
+  - name: tasks
+    description: Task management
+  - name: pointage
+    description: Attendance and timesheet management
+  - name: personnel
+    description: Worker personnel management
+  - name: expenses
+    description: Expense management
+  - name: messages
+    description: Messaging system
+  - name: notifications
+    description: Notifications system
+  - name: activity
+    description: Activity logs
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,7 +43,868 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [auth]
+      summary: Refresh JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a new user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    put:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List all projects
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new project
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get project by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+    put:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update project
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectRequest"
+      responses:
+        "200":
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete project
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /tasks:
+    get:
+      operationId: listTasks
+      tags: [tasks]
+      summary: List tasks
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      operationId: createTask
+      tags: [tasks]
+      summary: Create a task
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+      responses:
+        "201":
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+
+  /tasks/{id}:
+    put:
+      operationId: updateTask
+      tags: [tasks]
+      summary: Update task
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskRequest"
+      responses:
+        "200":
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Delete task
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Task deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /pointage:
+    get:
+      operationId: listPointageSheets
+      tags: [pointage]
+      summary: List pointage sheets
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: integer
+        - name: date
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of pointage sheets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PointageSheet"
+    post:
+      operationId: createPointageSheet
+      tags: [pointage]
+      summary: Create a pointage sheet
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePointageSheetRequest"
+      responses:
+        "201":
+          description: Pointage sheet created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PointageSheet"
+
+  /pointage/{id}:
+    get:
+      operationId: getPointageSheet
+      tags: [pointage]
+      summary: Get pointage sheet by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Pointage sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PointageSheetDetail"
+    put:
+      operationId: updatePointageSheet
+      tags: [pointage]
+      summary: Update pointage sheet
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePointageSheetRequest"
+      responses:
+        "200":
+          description: Pointage sheet updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PointageSheet"
+
+  /pointage/{id}/submit:
+    post:
+      operationId: submitPointageSheet
+      tags: [pointage]
+      summary: Submit pointage sheet for approval
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitPointageRequest"
+      responses:
+        "200":
+          description: Sheet submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PointageSheet"
+
+  /pointage/{id}/approve:
+    post:
+      operationId: approvePointageSheet
+      tags: [pointage]
+      summary: Approve or reject pointage sheet
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovePointageRequest"
+      responses:
+        "200":
+          description: Sheet approved/rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PointageSheet"
+
+  /personnel:
+    get:
+      operationId: listPersonnel
+      tags: [personnel]
+      summary: List all personnel
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of personnel
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Personnel"
+    post:
+      operationId: createPersonnel
+      tags: [personnel]
+      summary: Create personnel record
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePersonnelRequest"
+      responses:
+        "201":
+          description: Personnel created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Personnel"
+
+  /personnel/{id}:
+    put:
+      operationId: updatePersonnel
+      tags: [personnel]
+      summary: Update personnel
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePersonnelRequest"
+      responses:
+        "200":
+          description: Personnel updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Personnel"
+    delete:
+      operationId: deletePersonnel
+      tags: [personnel]
+      summary: Delete personnel
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Personnel deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /expenses:
+    get:
+      operationId: listExpenses
+      tags: [expenses]
+      summary: List all expenses
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: integer
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Expense"
+    post:
+      operationId: createExpense
+      tags: [expenses]
+      summary: Create an expense
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpenseRequest"
+      responses:
+        "201":
+          description: Expense created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+
+  /expenses/{id}:
+    put:
+      operationId: updateExpense
+      tags: [expenses]
+      summary: Update expense
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateExpenseRequest"
+      responses:
+        "200":
+          description: Expense updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+    delete:
+      operationId: deleteExpense
+      tags: [expenses]
+      summary: Delete expense
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Expense deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /expenses/{id}/validate:
+    post:
+      operationId: validateExpense
+      tags: [expenses]
+      summary: Validate or reject expense
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValidateExpenseRequest"
+      responses:
+        "200":
+          description: Expense validated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+
+  /messages:
+    get:
+      operationId: listMessages
+      tags: [messages]
+      summary: List messages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: integer
+        - name: recipientId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /messages/{id}/read:
+    post:
+      operationId: markMessageRead
+      tags: [messages]
+      summary: Mark message as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Message marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List notifications
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark notification as read
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /activity:
+    get:
+      operationId: listActivityLogs
+      tags: [activity]
+      summary: List activity logs
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of activity logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityLog"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [activity]
+      summary: Get dashboard statistics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +914,796 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+      required:
+        - refreshToken
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - token
+        - refreshToken
+        - user
+
+    UserPermissions:
+      type: object
+      properties:
+        canAddWorkers:
+          type: boolean
+        canDeleteWorkers:
+          type: boolean
+        canEditWorkers:
+          type: boolean
+        canAddExpenses:
+          type: boolean
+        canDeleteExpenses:
+          type: boolean
+        canAddProjects:
+          type: boolean
+        canViewFinances:
+          type: boolean
+        canManagePointage:
+          type: boolean
+      required:
+        - canAddWorkers
+        - canDeleteWorkers
+        - canEditWorkers
+        - canAddExpenses
+        - canDeleteExpenses
+        - canAddProjects
+        - canViewFinances
+        - canManagePointage
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, CHEF_CHANTIER, OUVRIER]
+        isActive:
+          type: boolean
+        permissions:
+          $ref: "#/components/schemas/UserPermissions"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - name
+        - role
+        - isActive
+
+    CreateUserRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, CHEF_CHANTIER, OUVRIER]
+        permissions:
+          $ref: "#/components/schemas/UserPermissions"
+      required:
+        - email
+        - name
+        - password
+        - role
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, CHEF_CHANTIER, OUVRIER]
+        isActive:
+          type: boolean
+        permissions:
+          $ref: "#/components/schemas/UserPermissions"
+        password:
+          type: string
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        location:
+          type: string
+        clientName:
+          type: string
+        status:
+          type: string
+          enum: [PLANIFIE, EN_COURS, EN_PAUSE, TERMINE]
+        budgetTotal:
+          type: number
+        budgetSpent:
+          type: number
+        progress:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        chefId:
+          type: integer
+        chefName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - status
+        - budgetTotal
+        - budgetSpent
+        - progress
+
+    ProjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/Project"
+        - type: object
+          properties:
+            tasks:
+              type: array
+              items:
+                $ref: "#/components/schemas/Task"
+            expenses:
+              type: array
+              items:
+                $ref: "#/components/schemas/Expense"
+            workers:
+              type: array
+              items:
+                $ref: "#/components/schemas/Personnel"
+            messages:
+              type: array
+              items:
+                $ref: "#/components/schemas/Message"
+
+    CreateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+        clientName:
+          type: string
+        status:
+          type: string
+          enum: [PLANIFIE, EN_COURS, EN_PAUSE, TERMINE]
+        budgetTotal:
+          type: number
+        progress:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        chefId:
+          type: integer
+      required:
+        - name
+        - budgetTotal
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+        clientName:
+          type: string
+        status:
+          type: string
+          enum: [PLANIFIE, EN_COURS, EN_PAUSE, TERMINE]
+        budgetTotal:
+          type: number
+        progress:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        chefId:
+          type: integer
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        projectName:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        assignedToId:
+          type: integer
+        assignedToName:
+          type: string
+        dueDate:
+          type: string
+          format: date
+        priority:
+          type: string
+          enum: [BASSE, NORMALE, HAUTE, URGENTE]
+        status:
+          type: string
+          enum: [A_FAIRE, EN_COURS, BLOQUEE, TERMINEE]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - title
+        - priority
+        - status
+
+    CreateTaskRequest:
+      type: object
+      properties:
+        projectId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        assignedToId:
+          type: integer
+        dueDate:
+          type: string
+          format: date
+        priority:
+          type: string
+          enum: [BASSE, NORMALE, HAUTE, URGENTE]
+        status:
+          type: string
+          enum: [A_FAIRE, EN_COURS, BLOQUEE, TERMINEE]
+      required:
+        - projectId
+        - title
+        - priority
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        assignedToId:
+          type: integer
+        dueDate:
+          type: string
+          format: date
+        priority:
+          type: string
+          enum: [BASSE, NORMALE, HAUTE, URGENTE]
+        status:
+          type: string
+          enum: [A_FAIRE, EN_COURS, BLOQUEE, TERMINEE]
+
+    PointageEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        personnelId:
+          type: integer
+        personnelName:
+          type: string
+        status:
+          type: string
+          enum: [PRESENT, ABSENT, DEMI_JOURNEE]
+        arrivalTime:
+          type: string
+        departureTime:
+          type: string
+        hoursWorked:
+          type: number
+        dailyWage:
+          type: number
+        totalPay:
+          type: number
+        notes:
+          type: string
+      required:
+        - id
+        - personnelId
+        - personnelName
+        - status
+
+    PointageSheet:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        projectName:
+          type: string
+        date:
+          type: string
+          format: date
+        chefId:
+          type: integer
+        chefName:
+          type: string
+        status:
+          type: string
+          enum: [BROUILLON, SOUMISE, APPROUVEE, REJETEE, ARCHIVEE]
+        signatureData:
+          type: string
+        adminComment:
+          type: string
+        totalPay:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - date
+        - status
+
+    PointageSheetDetail:
+      allOf:
+        - $ref: "#/components/schemas/PointageSheet"
+        - type: object
+          properties:
+            entries:
+              type: array
+              items:
+                $ref: "#/components/schemas/PointageEntry"
+
+    CreatePointageSheetRequest:
+      type: object
+      properties:
+        projectId:
+          type: integer
+        date:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreatePointageEntryRequest"
+      required:
+        - projectId
+        - date
+
+    CreatePointageEntryRequest:
+      type: object
+      properties:
+        personnelId:
+          type: integer
+        status:
+          type: string
+          enum: [PRESENT, ABSENT, DEMI_JOURNEE]
+        arrivalTime:
+          type: string
+        departureTime:
+          type: string
+        hoursWorked:
+          type: number
+        dailyWage:
+          type: number
+        notes:
+          type: string
+      required:
+        - personnelId
+        - status
+
+    UpdatePointageSheetRequest:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreatePointageEntryRequest"
+
+    SubmitPointageRequest:
+      type: object
+      properties:
+        signatureData:
+          type: string
+      required:
+        - signatureData
+
+    ApprovePointageRequest:
+      type: object
+      properties:
+        approved:
+          type: boolean
+        comment:
+          type: string
+      required:
+        - approved
+
+    Personnel:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        trade:
+          type: string
+        phone:
+          type: string
+        idNumber:
+          type: string
+        emergencyContact:
+          type: string
+        dailyWage:
+          type: number
+        contractType:
+          type: string
+          enum: [CDI, CDD, JOURNALIER]
+        projectIds:
+          type: array
+          items:
+            type: integer
+        totalDaysWorked:
+          type: integer
+        totalPayOwed:
+          type: number
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - trade
+        - dailyWage
+        - contractType
+        - isActive
+
+    CreatePersonnelRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        trade:
+          type: string
+        phone:
+          type: string
+        idNumber:
+          type: string
+        emergencyContact:
+          type: string
+        dailyWage:
+          type: number
+        contractType:
+          type: string
+          enum: [CDI, CDD, JOURNALIER]
+      required:
+        - name
+        - trade
+        - dailyWage
+        - contractType
+
+    UpdatePersonnelRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        trade:
+          type: string
+        phone:
+          type: string
+        idNumber:
+          type: string
+        emergencyContact:
+          type: string
+        dailyWage:
+          type: number
+        contractType:
+          type: string
+          enum: [CDI, CDD, JOURNALIER]
+        isActive:
+          type: boolean
+
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        projectName:
+          type: string
+        title:
+          type: string
+        category:
+          type: string
+          enum: [MATERIAUX, EQUIPEMENTS, TRANSPORT, CARBURANT, NOURRITURE, AUTRE]
+        amount:
+          type: number
+        date:
+          type: string
+          format: date
+        supplier:
+          type: string
+        receiptUrl:
+          type: string
+        addedById:
+          type: integer
+        addedByName:
+          type: string
+        status:
+          type: string
+          enum: [EN_ATTENTE, APPROUVEE, REJETEE]
+        adminComment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - projectId
+        - title
+        - category
+        - amount
+        - date
+        - status
+
+    CreateExpenseRequest:
+      type: object
+      properties:
+        projectId:
+          type: integer
+        title:
+          type: string
+        category:
+          type: string
+          enum: [MATERIAUX, EQUIPEMENTS, TRANSPORT, CARBURANT, NOURRITURE, AUTRE]
+        amount:
+          type: number
+        date:
+          type: string
+          format: date
+        supplier:
+          type: string
+        receiptUrl:
+          type: string
+      required:
+        - projectId
+        - title
+        - category
+        - amount
+        - date
+
+    UpdateExpenseRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        category:
+          type: string
+          enum: [MATERIAUX, EQUIPEMENTS, TRANSPORT, CARBURANT, NOURRITURE, AUTRE]
+        amount:
+          type: number
+        date:
+          type: string
+          format: date
+        supplier:
+          type: string
+
+    ValidateExpenseRequest:
+      type: object
+      properties:
+        approved:
+          type: boolean
+        comment:
+          type: string
+      required:
+        - approved
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        senderId:
+          type: integer
+        senderName:
+          type: string
+        recipientId:
+          type: integer
+        recipientName:
+          type: string
+        projectId:
+          type: integer
+        projectName:
+          type: string
+        content:
+          type: string
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - senderId
+        - content
+        - isRead
+        - createdAt
+
+    SendMessageRequest:
+      type: object
+      properties:
+        recipientId:
+          type: integer
+        projectId:
+          type: integer
+        content:
+          type: string
+      required:
+        - content
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        isRead:
+          type: boolean
+        relatedId:
+          type: integer
+        relatedType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - type
+        - title
+        - message
+        - isRead
+        - createdAt
+
+    ActivityLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        userName:
+          type: string
+        action:
+          type: string
+        details:
+          type: string
+        entityType:
+          type: string
+        entityId:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - action
+        - createdAt
+
+    DashboardStats:
+      type: object
+      properties:
+        totalProjects:
+          type: integer
+        activeProjects:
+          type: integer
+        totalWorkers:
+          type: integer
+        monthlyExpenses:
+          type: number
+        pendingExpenses:
+          type: integer
+        pendingPointage:
+          type: integer
+        unreadMessages:
+          type: integer
+        budgetOverruns:
+          type: integer
+      required:
+        - totalProjects
+        - activeProjects
+        - totalWorkers
+        - monthlyExpenses
+        - pendingExpenses
+        - pendingPointage
+        - unreadMessages
+        - budgetOverruns
