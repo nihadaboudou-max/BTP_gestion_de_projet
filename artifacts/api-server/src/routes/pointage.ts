@@ -65,7 +65,8 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
 
 router.post("/", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { projectId, date, entries } = req.body;
+    const body = req.body ?? {};
+    const { projectId, date, entries } = body;
     if (!projectId || !date) {
       res.status(400).json({ error: "Validation", message: "Projet et date requis" });
       return;

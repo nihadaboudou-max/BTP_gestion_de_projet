@@ -20,7 +20,7 @@ router.get("/", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
-router.get("/dashboard/stats", authenticate, async (req: AuthRequest, res) => {
+router.get("/stats", authenticate, async (req: AuthRequest, res) => {
   try {
     const { userId, role } = req.user!;
 
