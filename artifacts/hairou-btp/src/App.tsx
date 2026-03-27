@@ -9,9 +9,13 @@ import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
+import Tasks from "@/pages/tasks";
 import Pointage from "@/pages/pointage";
 import PointageDetail from "@/pages/pointage-detail";
 import Expenses from "@/pages/expenses";
+import Personnel from "@/pages/personnel";
+import Messages from "@/pages/messages";
+import Notifications from "@/pages/notifications";
 
 // Global Fetch Interceptor for JWT
 const originalFetch = window.fetch;
@@ -78,11 +82,21 @@ function Router() {
         {() => <ProtectedRoute component={Expenses} />}
       </Route>
 
-      {/* Placeholder for remaining routes */}
-      <Route path="/taches" component={() => <ProtectedRoute component={() => <div className="p-8 text-center text-muted-foreground">Page en construction</div>} />} />
-      <Route path="/personnel" component={() => <ProtectedRoute component={() => <div className="p-8 text-center text-muted-foreground">Page en construction</div>} />} />
-      <Route path="/messages" component={() => <ProtectedRoute component={() => <div className="p-8 text-center text-muted-foreground">Page en construction</div>} />} />
-      <Route path="/notifications" component={() => <ProtectedRoute component={() => <div className="p-8 text-center text-muted-foreground">Page en construction</div>} />} />
+      <Route path="/taches">
+        {() => <ProtectedRoute component={Tasks} />}
+      </Route>
+
+      <Route path="/personnel">
+        {() => <ProtectedRoute component={Personnel} />}
+      </Route>
+
+      <Route path="/messages">
+        {() => <ProtectedRoute component={Messages} />}
+      </Route>
+
+      <Route path="/notifications">
+        {() => <ProtectedRoute component={Notifications} />}
+      </Route>
 
       <Route component={NotFound} />
     </Switch>
