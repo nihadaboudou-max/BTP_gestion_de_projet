@@ -95,7 +95,7 @@ export default function Messages() {
                             {msg.senderName || 'Inconnu'}
                           </p>
                         </div>
-                        <p className="text-xs text-muted-foreground truncate mt-0.5">{msg.subject}</p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">{(msg.content || '').substring(0, 60)}</p>
                       </div>
                       <span className="text-[10px] text-muted-foreground shrink-0">{formatDateTime(msg.createdAt)}</span>
                     </div>
@@ -109,7 +109,9 @@ export default function Messages() {
               {selected ? (
                 <>
                   <div className="px-6 py-4 border-b border-border/50">
-                    <h3 className="font-bold text-lg text-foreground">{selected.subject}</h3>
+                    <h3 className="font-bold text-lg text-foreground">
+                      {/^\[.+\]/.test(selected.content || '') ? selected.content.match(/^\[(.+?)\]/)?.[1] : 'Message'}
+                    </h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       De: <span className="font-medium text-foreground">{selected.senderName}</span>
                       {' · '}
@@ -117,7 +119,11 @@ export default function Messages() {
                     </p>
                   </div>
                   <div className="flex-1 p-6 overflow-auto">
-                    <p className="text-foreground leading-relaxed whitespace-pre-wrap">{selected.body}</p>
+                    <p className="text-foreground leading-relaxed whitespace-pre-wrap">
+                      {/^\[.+\]/.test(selected.content || '')
+                        ? selected.content.replace(/^\[.+?\]\s*/, '')
+                        : selected.content}
+                    </p>
                   </div>
                 </>
               ) : (

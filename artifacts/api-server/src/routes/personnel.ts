@@ -47,8 +47,13 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    const { name, trade, phone, idNumber, emergencyContact, dailyWage, contractType } = req.body;
-    if (!name || !trade || !dailyWage || !contractType) {
+    const body = req.body ?? {};
+    const { name, phone, emergencyContact, dailyWage, contractType } = body;
+    const trade = body.trade || body.speciality;
+    const idNumber = body.idNumber || body.nationalId;
+    const safeContractType = (contractType === "FREELANCE") ? "CDD" : contractType;
+
+    if (!name || !trade || !dailyWage || !safeContractType) {
       res.status(400).json({ error: "Validation", message: "Nom, métier, salaire journalier et type de contrat requis" });
       return;
     }
@@ -56,7 +61,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
     const [personnel] = await db.insert(personnelTable).values({
       name, trade, phone, idNumber, emergencyContact,
       dailyWage: dailyWage.toString(),
-      contractType,
+      contractType: safeContractType,
     }).returning();
 
     await db.insert(activityLogsTable).values({
@@ -78,7 +83,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
 router.put("/:id", authenticate, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, trade, phone, idNumber, emergencyContact, dailyWage, contractType, isActive } = req.body;
+    const { name, trade, phone, idNumber, emergencyContact, dailyWage, contractType, isActive } = req.body ?? {};
 
     const updates: Partial<typeof personnelTable.$inferInsert> = {};
     if (name !== undefined) updates.name = name;

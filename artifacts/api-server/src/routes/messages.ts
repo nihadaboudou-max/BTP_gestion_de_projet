@@ -55,17 +55,22 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
 router.post("/", authenticate, async (req: AuthRequest, res) => {
   try {
     const { userId } = req.user!;
-    const { recipientId, projectId, content } = req.body;
-    if (!content) {
+    const body = req.body ?? {};
+    const { recipientId, projectId } = body;
+    const content = body.content || body.body || body.message || "";
+    const subject = body.subject || "";
+    const fullContent = subject ? `[${subject}] ${content}` : content;
+
+    if (!fullContent.trim()) {
       res.status(400).json({ error: "Validation", message: "Contenu du message requis" });
       return;
     }
 
     const [message] = await db.insert(messagesTable).values({
       senderId: userId,
-      recipientId: recipientId || null,
-      projectId: projectId || null,
-      content,
+      recipientId: recipientId ? parseInt(recipientId) : null,
+      projectId: projectId ? parseInt(projectId) : null,
+      content: fullContent,
     }).returning();
 
     if (recipientId) {

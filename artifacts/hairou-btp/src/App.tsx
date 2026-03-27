@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import NotFound from "@/pages/not-found";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 // Page Imports
 import Login from "@/pages/login";
@@ -16,21 +17,11 @@ import Expenses from "@/pages/expenses";
 import Personnel from "@/pages/personnel";
 import Messages from "@/pages/messages";
 import Notifications from "@/pages/notifications";
+import Administration from "@/pages/administration";
 
-// Global Fetch Interceptor for JWT
-const originalFetch = window.fetch;
-window.fetch = async (...args) => {
-  let [resource, config] = args;
-  const token = localStorage.getItem('hairou_token');
-  if (token && typeof resource === 'string' && resource.startsWith('/api')) {
-    config = config || {};
-    config.headers = {
-      ...config.headers,
-      Authorization: `Bearer ${token}`
-    };
-  }
-  return originalFetch(resource, config);
-};
+// Register JWT token getter — the API client will attach it as Bearer on every request
+// without interfering with Content-Type or other headers
+setAuthTokenGetter(() => localStorage.getItem('hairou_token'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -96,6 +87,10 @@ function Router() {
 
       <Route path="/notifications">
         {() => <ProtectedRoute component={Notifications} />}
+      </Route>
+
+      <Route path="/administration">
+        {() => <ProtectedRoute component={Administration} />}
       </Route>
 
       <Route component={NotFound} />

@@ -138,7 +138,7 @@ router.get("/:id", authenticate, async (req: AuthRequest, res) => {
 router.put("/:id", authenticate, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { entries } = req.body;
+    const { entries } = req.body ?? {};
 
     const [existing] = await db.select().from(pointageSheetsTable).where(eq(pointageSheetsTable.id, id)).limit(1);
     if (!existing) {
@@ -187,7 +187,7 @@ router.put("/:id", authenticate, async (req: AuthRequest, res) => {
 router.post("/:id/submit", authenticate, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { signatureData } = req.body;
+    const { signatureData } = req.body ?? {};
     if (!signatureData) {
       res.status(400).json({ error: "Validation", message: "Signature requise pour soumettre la fiche" });
       return;
@@ -238,7 +238,7 @@ router.post("/:id/approve", authenticate, async (req: AuthRequest, res) => {
     }
 
     const id = parseInt(req.params.id);
-    const { approved, comment } = req.body;
+    const { approved, comment } = req.body ?? {};
 
     const [existing] = await db.select().from(pointageSheetsTable).where(eq(pointageSheetsTable.id, id)).limit(1);
     if (!existing) {

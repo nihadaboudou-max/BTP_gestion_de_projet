@@ -39,7 +39,7 @@ router.get("/", authenticate, requireAdmin, async (req: AuthRequest, res) => {
 
 router.post("/", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    const { email, name, password, role, permissions } = req.body;
+    const { email, name, password, role, permissions } = req.body ?? {};
     if (!email || !name || !password || !role) {
       res.status(400).json({ error: "Validation", message: "Email, nom, mot de passe et rôle requis" });
       return;
@@ -93,7 +93,7 @@ router.get("/:id", authenticate, async (req: AuthRequest, res) => {
 router.put("/:id", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, email, role, isActive, permissions, password } = req.body;
+    const { name, email, role, isActive, permissions, password } = req.body ?? {};
 
     const updates: Partial<typeof usersTable.$inferInsert> = {};
     if (name !== undefined) updates.name = name;

@@ -9,7 +9,7 @@ const router = Router();
 
 router.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body ?? {};
     if (!email || !password) {
       res.status(400).json({ error: "Validation", message: "Email et mot de passe requis" });
       return;
@@ -103,7 +103,7 @@ router.get("/me", authenticate, async (req: AuthRequest, res) => {
 
 router.post("/refresh", async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const { refreshToken } = req.body ?? {};
     if (!refreshToken) {
       res.status(400).json({ error: "Validation", message: "Token de rafraîchissement requis" });
       return;

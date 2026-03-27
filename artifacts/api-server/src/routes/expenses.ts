@@ -55,7 +55,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    const { projectId, title, category, amount, date, supplier, receiptUrl } = req.body;
+    const { projectId, title, category, amount, date, supplier, receiptUrl } = req.body ?? {};
     if (!projectId || !title || !category || !amount || !date) {
       res.status(400).json({ error: "Validation", message: "Projet, titre, catégorie, montant et date requis" });
       return;
@@ -97,7 +97,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
 router.put("/:id", authenticate, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { title, category, amount, date, supplier } = req.body;
+    const { title, category, amount, date, supplier } = req.body ?? {};
 
     const updates: Partial<typeof expensesTable.$inferInsert> = {};
     if (title !== undefined) updates.title = title;
@@ -142,7 +142,7 @@ router.post("/:id/validate", authenticate, async (req: AuthRequest, res) => {
     }
 
     const id = parseInt(req.params.id);
-    const { approved, comment } = req.body;
+    const { approved, comment } = req.body ?? {};
 
     const [existing] = await db.select().from(expensesTable).where(eq(expensesTable.id, id)).limit(1);
     if (!existing) {

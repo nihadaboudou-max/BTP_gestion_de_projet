@@ -64,7 +64,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    const { name, location, clientName, status, budgetTotal, progress, startDate, endDate, chefId } = req.body;
+    const { name, location, clientName, status, budgetTotal, progress, startDate, endDate, chefId } = req.body ?? {};
     if (!name || !budgetTotal) {
       res.status(400).json({ error: "Validation", message: "Nom et budget requis" });
       return;
@@ -120,7 +120,7 @@ router.get("/:id", authenticate, async (req: AuthRequest, res) => {
 router.put("/:id", authenticate, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, location, clientName, status, budgetTotal, progress, startDate, endDate, chefId } = req.body;
+    const { name, location, clientName, status, budgetTotal, progress, startDate, endDate, chefId } = req.body ?? {};
 
     const updates: Partial<typeof projectsTable.$inferInsert> = {};
     if (name !== undefined) updates.name = name;

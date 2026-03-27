@@ -4,6 +4,28 @@
 
 HAIROU - Gestion BTP: A full-stack construction management platform. Built with React + Vite frontend, Express backend, PostgreSQL database, Socket.io for real-time, and JWT authentication.
 
+## All Pages (Complete)
+
+- `/login` — JWT login (admin@hairou.com, chef@hairou.com, ouvrier@hairou.com)
+- `/dashboard` — Stats, activity log, chart
+- `/projets` — Projects grid with create form
+- `/taches` — Kanban board (by priority)
+- `/pointage` — Daily attendance sheets with signature & approval
+- `/pointage/:id` — Detail view for a single sheet
+- `/depenses` — Expenses table; ADMIN sees Valider button → approve/reject modal
+- `/personnel` — Worker cards with add/edit; supports speciality→trade field mapping
+- `/messages` — Two-pane inbox; send to any user
+- `/notifications` — Notification list with mark-read
+- `/administration` — User management (create, edit, delete, permissions) — ADMIN only
+
+## Key Architecture Notes
+
+- **Auth**: `setAuthTokenGetter` from `@workspace/api-client-react` is used (NOT window.fetch override) — preserves Content-Type on all POST requests
+- **Backend field mapping**: personnel route accepts both `speciality`/`trade` and `nationalId`/`idNumber` from OpenAPI generated client; FREELANCE contract type maps to CDD
+- **Messages**: stored as single `content` field; frontend sends `subject`+`body` → backend stores as `[subject] body`
+- **All routes**: defensive `req.body ?? {}` on all destructuring
+- **Socket.io path**: `/api/socket.io`, rooms: `user:{userId}`
+
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces

@@ -45,7 +45,7 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
 
 router.post("/", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { projectId, title, description, assignedToId, dueDate, priority, status } = req.body;
+    const { projectId, title, description, assignedToId, dueDate, priority, status } = req.body ?? {};
     if (!projectId || !title || !priority) {
       res.status(400).json({ error: "Validation", message: "Projet, titre et priorité requis" });
       return;
@@ -89,7 +89,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
 router.put("/:id", authenticate, async (req: AuthRequest, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { title, description, assignedToId, dueDate, priority, status } = req.body;
+    const { title, description, assignedToId, dueDate, priority, status } = req.body ?? {};
 
     const updates: Partial<typeof tasksTable.$inferInsert> = {};
     if (title !== undefined) updates.title = title;
