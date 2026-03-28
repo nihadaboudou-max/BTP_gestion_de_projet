@@ -7,3 +7,5 @@ export * from "./expenses";
 export * from "./messages";
 export * from "./notifications";
 export * from "./activity";
+export * from "./reclamations";
+export * from "./presenceConfirmations";

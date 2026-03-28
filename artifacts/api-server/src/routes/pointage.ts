@@ -3,23 +3,58 @@ import { db } from "@workspace/db";
 import { pointageSheetsTable, pointageEntriesTable, personnelTable, projectsTable, usersTable, activityLogsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
-import { createNotification, notifyAdmins } from "../lib/notifications.js";
+import { createNotification, notifyAdmins, broadcastRefresh } from "../lib/notifications.js";
 
 const router = Router();
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function calcHours(arrival: string | null | undefined, departure: string | null | undefined): number | null {
+  if (!arrival || !departure) return null;
+  const toMin = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + (m || 0);
+  };
+  const diff = toMin(departure) - toMin(arrival);
+  return diff > 0 ? Math.round(diff / 60 * 100) / 100 : null;
+}
+
+function calcEntryPay(entry: {
+  status: string;
+  payMode?: string | null;
+  hoursWorked?: string | null;
+  overtimeHours?: string | null;
+  dailyWage?: string | null;
+  taskAmount?: string | null;
+  taskProgressPct?: number | null;
+}) {
+  if (entry.status === "ABSENT") return 0;
+  const mode = entry.payMode || "PAR_JOUR";
+  if (mode === "PAR_TACHE") {
+    const taskAmt = parseFloat(entry.taskAmount || "0");
+    const pct = entry.taskProgressPct ?? 100;
+    return taskAmt * (pct / 100);
+  }
+  const wage = parseFloat(entry.dailyWage || "0");
+  const hours = parseFloat(entry.hoursWorked || "0");
+  const overtime = parseFloat(entry.overtimeHours || "0");
+  if (entry.status === "DEMI_JOURNEE") return wage / 2;
+  if (entry.status === "HEURE_SUP") {
+    const normalPay = hours > 0 ? (hours - overtime) * (wage / 8) : wage;
+    const overtimePay = overtime * (wage / 8) * 1.5;
+    return normalPay + overtimePay;
+  }
+  if (hours > 0) return hours * (wage / 8);
+  return wage;
+}
+
 async function formatSheet(sheet: typeof pointageSheetsTable.$inferSelect) {
-  let projectName: string | undefined;
   const [p] = await db.select({ name: projectsTable.name }).from(projectsTable).where(eq(projectsTable.id, sheet.projectId)).limit(1);
-  projectName = p?.name;
-
-  let chefName: string | undefined;
   const [c] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, sheet.chefId)).limit(1);
-  chefName = c?.name;
-
   return {
     ...sheet,
-    projectName,
-    chefName,
+    projectName: p?.name,
+    chefName: c?.name,
     totalPay: parseFloat(sheet.totalPay as string),
   };
 }
@@ -28,17 +63,23 @@ async function formatSheetWithEntries(sheet: typeof pointageSheetsTable.$inferSe
   const formatted = await formatSheet(sheet);
   const entries = await db.select().from(pointageEntriesTable).where(eq(pointageEntriesTable.sheetId, sheet.id));
   const formattedEntries = await Promise.all(entries.map(async (entry) => {
-    const [p] = await db.select({ name: personnelTable.name }).from(personnelTable).where(eq(personnelTable.id, entry.personnelId)).limit(1);
+    const [p] = await db.select({ name: personnelTable.name, dailyWage: personnelTable.dailyWage }).from(personnelTable).where(eq(personnelTable.id, entry.personnelId)).limit(1);
     return {
       ...entry,
       personnelName: p?.name || "Inconnu",
+      defaultDailyWage: p?.dailyWage ? parseFloat(p.dailyWage as string) : null,
       hoursWorked: entry.hoursWorked ? parseFloat(entry.hoursWorked as string) : null,
+      overtimeHours: entry.overtimeHours ? parseFloat(entry.overtimeHours as string) : 0,
       dailyWage: entry.dailyWage ? parseFloat(entry.dailyWage as string) : null,
+      taskAmount: entry.taskAmount ? parseFloat(entry.taskAmount as string) : null,
+      amountDue: entry.amountDue ? parseFloat(entry.amountDue as string) : null,
       totalPay: entry.totalPay ? parseFloat(entry.totalPay as string) : null,
     };
   }));
   return { ...formatted, entries: formattedEntries };
 }
+
+// ─── routes ───────────────────────────────────────────────────────────────────
 
 router.get("/", authenticate, async (req: AuthRequest, res) => {
   try {
@@ -81,9 +122,8 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
 
     if (entries && Array.isArray(entries)) {
       for (const entry of entries) {
-        const totalPay = entry.status === "ABSENT" ? 0 :
-          entry.status === "DEMI_JOURNEE" ? (parseFloat(entry.dailyWage || "0") / 2) :
-          (parseFloat(entry.hoursWorked || "0") > 0 ? parseFloat(entry.hoursWorked) * (parseFloat(entry.dailyWage || "0") / 8) : parseFloat(entry.dailyWage || "0"));
+        const hoursWorked = entry.hoursWorked ?? calcHours(entry.arrivalTime, entry.departureTime);
+        const amountDue = calcEntryPay({ ...entry, hoursWorked: hoursWorked?.toString() });
 
         await db.insert(pointageEntriesTable).values({
           sheetId: sheet.id,
@@ -91,14 +131,20 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
           status: entry.status || "PRESENT",
           arrivalTime: entry.arrivalTime,
           departureTime: entry.departureTime,
-          hoursWorked: entry.hoursWorked?.toString(),
+          hoursWorked: hoursWorked?.toString(),
+          overtimeHours: entry.overtimeHours?.toString() || "0",
+          payMode: entry.payMode || "PAR_JOUR",
           dailyWage: entry.dailyWage?.toString(),
-          totalPay: totalPay.toString(),
+          taskId: entry.taskId ? parseInt(entry.taskId) : null,
+          taskAmount: entry.taskAmount?.toString(),
+          taskProgressPct: entry.taskProgressPct ?? 100,
+          amountDue: amountDue.toString(),
+          totalPay: amountDue.toString(),
           notes: entry.notes,
         });
       }
 
-      const totalPayResult = await db.select({ total: sql<string>`COALESCE(SUM(total_pay::numeric), 0)` })
+      const totalPayResult = await db.select({ total: sql<string>`COALESCE(SUM(amount_due::numeric), 0)` })
         .from(pointageEntriesTable).where(eq(pointageEntriesTable.sheetId, sheet.id));
       await db.update(pointageSheetsTable).set({ totalPay: totalPayResult[0]?.total || "0" }).where(eq(pointageSheetsTable.id, sheet.id));
     }
@@ -111,6 +157,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
       entityId: sheet.id,
     });
 
+    broadcastRefresh("refresh:pointage");
     const formatted = await formatSheetWithEntries(sheet);
     res.status(201).json(formatted);
   } catch (err) {
@@ -145,6 +192,10 @@ router.put("/:id", authenticate, async (req: AuthRequest, res) => {
       res.status(404).json({ error: "Non trouvé", message: "Fiche non trouvée" });
       return;
     }
+    if (existing.locked) {
+      res.status(400).json({ error: "Validation", message: "Cette fiche est verrouillée et ne peut plus être modifiée" });
+      return;
+    }
     if (existing.status !== "BROUILLON") {
       res.status(400).json({ error: "Validation", message: "La fiche soumise ne peut pas être modifiée" });
       return;
@@ -153,9 +204,8 @@ router.put("/:id", authenticate, async (req: AuthRequest, res) => {
     if (entries && Array.isArray(entries)) {
       await db.delete(pointageEntriesTable).where(eq(pointageEntriesTable.sheetId, id));
       for (const entry of entries) {
-        const totalPay = entry.status === "ABSENT" ? 0 :
-          entry.status === "DEMI_JOURNEE" ? (parseFloat(entry.dailyWage || "0") / 2) :
-          parseFloat(entry.dailyWage || "0");
+        const hoursWorked = entry.hoursWorked ?? calcHours(entry.arrivalTime, entry.departureTime);
+        const amountDue = calcEntryPay({ ...entry, hoursWorked: hoursWorked?.toString() });
 
         await db.insert(pointageEntriesTable).values({
           sheetId: id,
@@ -163,24 +213,61 @@ router.put("/:id", authenticate, async (req: AuthRequest, res) => {
           status: entry.status || "PRESENT",
           arrivalTime: entry.arrivalTime,
           departureTime: entry.departureTime,
-          hoursWorked: entry.hoursWorked?.toString(),
+          hoursWorked: hoursWorked?.toString(),
+          overtimeHours: entry.overtimeHours?.toString() || "0",
+          payMode: entry.payMode || "PAR_JOUR",
           dailyWage: entry.dailyWage?.toString(),
-          totalPay: totalPay.toString(),
+          taskId: entry.taskId ? parseInt(entry.taskId) : null,
+          taskAmount: entry.taskAmount?.toString(),
+          taskProgressPct: entry.taskProgressPct ?? 100,
+          amountDue: amountDue.toString(),
+          totalPay: amountDue.toString(),
           notes: entry.notes,
         });
       }
 
-      const totalPayResult = await db.select({ total: sql<string>`COALESCE(SUM(total_pay::numeric), 0)` })
+      const totalPayResult = await db.select({ total: sql<string>`COALESCE(SUM(amount_due::numeric), 0)` })
         .from(pointageEntriesTable).where(eq(pointageEntriesTable.sheetId, id));
       await db.update(pointageSheetsTable).set({ totalPay: totalPayResult[0]?.total || "0", updatedAt: new Date() }).where(eq(pointageSheetsTable.id, id));
     }
 
+    broadcastRefresh("refresh:pointage");
     const [sheet] = await db.select().from(pointageSheetsTable).where(eq(pointageSheetsTable.id, id)).limit(1);
     const formatted = await formatSheetWithEntries(sheet);
     res.json(formatted);
   } catch (err) {
     req.log.error({ err }, "Update pointage error");
     res.status(500).json({ error: "Erreur serveur", message: "Erreur lors de la mise à jour de la fiche" });
+  }
+});
+
+// Sign chef signature on a sheet
+router.post("/:id/sign-chef", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { signatureData } = req.body ?? {};
+    if (!signatureData) {
+      res.status(400).json({ error: "Validation", message: "Données de signature requises" });
+      return;
+    }
+
+    const [existing] = await db.select().from(pointageSheetsTable).where(eq(pointageSheetsTable.id, id)).limit(1);
+    if (!existing) {
+      res.status(404).json({ error: "Non trouvé", message: "Fiche non trouvée" });
+      return;
+    }
+
+    const [sheet] = await db.update(pointageSheetsTable).set({
+      chefSignature: signatureData,
+      chefSignedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(pointageSheetsTable.id, id)).returning();
+
+    const formatted = await formatSheetWithEntries(sheet);
+    res.json(formatted);
+  } catch (err) {
+    req.log.error({ err }, "Sign chef error");
+    res.status(500).json({ error: "Erreur serveur", message: "Erreur lors de la signature" });
   }
 });
 
@@ -200,7 +287,7 @@ router.post("/:id/submit", authenticate, async (req: AuthRequest, res) => {
     }
 
     const [sheet] = await db.update(pointageSheetsTable)
-      .set({ status: "SOUMISE", signatureData, submittedAt: new Date(), updatedAt: new Date() })
+      .set({ status: "SOUMISE", signatureData, chefSignature: signatureData, chefSignedAt: new Date(), submittedAt: new Date(), updatedAt: new Date() })
       .where(eq(pointageSheetsTable.id, id))
       .returning();
 
@@ -222,6 +309,7 @@ router.post("/:id/submit", authenticate, async (req: AuthRequest, res) => {
       entityId: id,
     });
 
+    broadcastRefresh("refresh:pointage");
     const formatted = await formatSheetWithEntries(sheet);
     res.json(formatted);
   } catch (err) {
@@ -247,7 +335,12 @@ router.post("/:id/approve", authenticate, async (req: AuthRequest, res) => {
     }
 
     const [sheet] = await db.update(pointageSheetsTable)
-      .set({ status: approved ? "APPROUVEE" : "REJETEE", adminComment: comment, updatedAt: new Date() })
+      .set({
+        status: approved ? "APPROUVEE" : "REJETEE",
+        locked: approved ? true : false,
+        adminComment: comment,
+        updatedAt: new Date(),
+      })
       .where(eq(pointageSheetsTable.id, id))
       .returning();
 
@@ -255,11 +348,12 @@ router.post("/:id/approve", authenticate, async (req: AuthRequest, res) => {
       userId: existing.chefId,
       type: approved ? "POINTAGE_APPROVED" : "POINTAGE_REJECTED",
       title: approved ? "Fiche de pointage approuvée" : "Fiche de pointage rejetée",
-      message: approved ? `Votre fiche du ${existing.date} a été approuvée` : `Votre fiche du ${existing.date} a été rejetée${comment ? `: ${comment}` : ""}`,
+      message: approved ? `Votre fiche du ${existing.date} a été approuvée` : `Votre fiche du ${existing.date} a été rejetée${comment ? ` : ${comment}` : ""}`,
       relatedId: id,
       relatedType: "pointage",
     });
 
+    broadcastRefresh("refresh:pointage");
     const formatted = await formatSheetWithEntries(sheet);
     res.json(formatted);
   } catch (err) {

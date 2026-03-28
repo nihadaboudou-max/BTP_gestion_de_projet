@@ -3,13 +3,19 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const userRoleEnum = pgEnum("user_role", ["ADMIN", "CHEF_CHANTIER", "OUVRIER"]);
+export const userStatusEnum = pgEnum("user_status", ["PENDING", "APPROVED", "REJECTED"]);
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
+  phone: text("phone"),
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("OUVRIER"),
+  status: userStatusEnum("status").notNull().default("APPROVED"),
+  rejectionReason: text("rejection_reason"),
+  approvedAt: timestamp("approved_at"),
+  approvedById: text("approved_by_id"),
   isActive: boolean("is_active").notNull().default(true),
   canAddWorkers: boolean("can_add_workers").notNull().default(false),
   canDeleteWorkers: boolean("can_delete_workers").notNull().default(false),

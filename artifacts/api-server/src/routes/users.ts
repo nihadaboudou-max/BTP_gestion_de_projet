@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, activityLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authenticate, requireAdmin, hashPassword, type AuthRequest } from "../lib/auth.js";
+import { createNotification } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -11,7 +12,10 @@ function formatUser(user: typeof usersTable.$inferSelect) {
     id: user.id,
     email: user.email,
     name: user.name,
+    phone: user.phone,
     role: user.role,
+    status: user.status,
+    rejectionReason: user.rejectionReason,
     isActive: user.isActive,
     permissions: {
       canAddWorkers: user.canAddWorkers,
@@ -37,6 +41,109 @@ router.get("/", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /users/pending — admin only: accounts awaiting approval
+router.get("/pending", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const users = await db.select().from(usersTable)
+      .where(eq(usersTable.status, "PENDING"))
+      .orderBy(usersTable.createdAt);
+    res.json(users.map(formatUser));
+  } catch (err) {
+    req.log.error({ err }, "List pending users error");
+    res.status(500).json({ error: "Erreur serveur", message: "Erreur" });
+  }
+});
+
+// POST /users/:id/approve — admin approves account with optional permissions
+router.post("/:id/approve", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { permissions, role } = req.body ?? {};
+
+    const perms: Partial<typeof usersTable.$inferInsert> = {};
+    if (permissions) {
+      if (permissions.canAddWorkers !== undefined) perms.canAddWorkers = permissions.canAddWorkers;
+      if (permissions.canDeleteWorkers !== undefined) perms.canDeleteWorkers = permissions.canDeleteWorkers;
+      if (permissions.canEditWorkers !== undefined) perms.canEditWorkers = permissions.canEditWorkers;
+      if (permissions.canAddExpenses !== undefined) perms.canAddExpenses = permissions.canAddExpenses;
+      if (permissions.canDeleteExpenses !== undefined) perms.canDeleteExpenses = permissions.canDeleteExpenses;
+      if (permissions.canAddProjects !== undefined) perms.canAddProjects = permissions.canAddProjects;
+      if (permissions.canViewFinances !== undefined) perms.canViewFinances = permissions.canViewFinances;
+      if (permissions.canManagePointage !== undefined) perms.canManagePointage = permissions.canManagePointage;
+    }
+    if (role) perms.role = role;
+
+    const [user] = await db.update(usersTable).set({
+      status: "APPROVED",
+      approvedAt: new Date(),
+      approvedById: String(req.user!.userId),
+      isActive: true,
+      updatedAt: new Date(),
+      ...perms,
+    }).where(eq(usersTable.id, id)).returning();
+
+    if (!user) {
+      res.status(404).json({ error: "Non trouvé", message: "Utilisateur non trouvé" });
+      return;
+    }
+
+    await createNotification({
+      userId: id,
+      type: "ACCOUNT_APPROVED",
+      title: "Compte approuvé",
+      message: "Votre compte a été approuvé. Vous pouvez maintenant vous connecter.",
+      relatedId: id,
+      relatedType: "user",
+    });
+
+    await db.insert(activityLogsTable).values({
+      userId: req.user!.userId,
+      action: "APPROVE_USER",
+      details: `Compte approuvé : ${user.name}`,
+      entityType: "user",
+      entityId: id,
+    });
+
+    res.json(formatUser(user));
+  } catch (err) {
+    req.log.error({ err }, "Approve user error");
+    res.status(500).json({ error: "Erreur serveur", message: "Erreur lors de l'approbation" });
+  }
+});
+
+// POST /users/:id/reject — admin rejects account with reason
+router.post("/:id/reject", authenticate, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { reason } = req.body ?? {};
+
+    const [user] = await db.update(usersTable).set({
+      status: "REJECTED",
+      rejectionReason: reason || null,
+      isActive: false,
+      updatedAt: new Date(),
+    }).where(eq(usersTable.id, id)).returning();
+
+    if (!user) {
+      res.status(404).json({ error: "Non trouvé", message: "Utilisateur non trouvé" });
+      return;
+    }
+
+    await db.insert(activityLogsTable).values({
+      userId: req.user!.userId,
+      action: "REJECT_USER",
+      details: `Compte rejeté : ${user.name}${reason ? ` — ${reason}` : ""}`,
+      entityType: "user",
+      entityId: id,
+    });
+
+    res.json(formatUser(user));
+  } catch (err) {
+    req.log.error({ err }, "Reject user error");
+    res.status(500).json({ error: "Erreur serveur", message: "Erreur lors du rejet" });
+  }
+});
+
 router.post("/", authenticate, requireAdmin, async (req: AuthRequest, res) => {
   try {
     const { email, name, password, role, permissions } = req.body ?? {};
@@ -57,6 +164,7 @@ router.post("/", authenticate, requireAdmin, async (req: AuthRequest, res) => {
       name,
       passwordHash,
       role,
+      status: "APPROVED",
       ...(permissions || {}),
     }).returning();
 

@@ -1,6 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useListNotifications } from "@workspace/api-client-react";
 import { 
   LayoutDashboard, 
   HardHat, 
@@ -12,7 +13,7 @@ import {
   Bell, 
   LogOut,
   Menu,
-  X
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -21,12 +22,36 @@ interface LayoutProps {
   title: string;
 }
 
+const roleLabels: Record<string, string> = {
+  ADMIN: "Administrateur",
+  CHEF_CHANTIER: "Chef de Chantier",
+  OUVRIER: "Ouvrier",
+};
+
 export function AppLayout({ children, title }: LayoutProps) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { data: notifications } = useListNotifications({ query: { refetchInterval: 30000 } });
 
-  const navItems = [
+  const unreadCount = notifications?.filter((n: any) => !n.isRead).length ?? 0;
+  const isAdmin = user?.role === "ADMIN";
+  const isOuvrier = user?.role === "OUVRIER";
+  const isChef = user?.role === "CHEF_CHANTIER";
+
+  // Build nav items based on role
+  const adminNav = [
+    { href: "/dashboard", label: "Tableau de Bord", icon: LayoutDashboard },
+    { href: "/projets", label: "Projets", icon: HardHat },
+    { href: "/taches", label: "Tâches", icon: CheckSquare },
+    { href: "/pointage", label: "Pointage", icon: ClipboardList },
+    { href: "/personnel", label: "Personnel", icon: Users },
+    { href: "/depenses", label: "Dépenses", icon: Receipt },
+    { href: "/messages", label: "Messages", icon: MessageSquare },
+    { href: "/administration", label: "Administration", icon: Shield, badge: true },
+  ];
+
+  const chefNav = [
     { href: "/dashboard", label: "Tableau de Bord", icon: LayoutDashboard },
     { href: "/projets", label: "Projets", icon: HardHat },
     { href: "/taches", label: "Tâches", icon: CheckSquare },
@@ -36,9 +61,17 @@ export function AppLayout({ children, title }: LayoutProps) {
     { href: "/messages", label: "Messages", icon: MessageSquare },
   ];
 
+  const ouvrierNav = [
+    { href: "/dashboard", label: "Mon Tableau de Bord", icon: LayoutDashboard },
+    { href: "/taches", label: "Mes Tâches", icon: CheckSquare },
+    { href: "/pointage", label: "Mon Pointage", icon: ClipboardList },
+    { href: "/messages", label: "Messages", icon: MessageSquare },
+  ];
+
+  const navItems = isAdmin ? adminNav : isOuvrier ? ouvrierNav : chefNav;
+
   return (
     <div className="min-h-screen bg-background flex w-full overflow-hidden">
-      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm transition-opacity"
@@ -46,7 +79,6 @@ export function AppLayout({ children, title }: LayoutProps) {
         />
       )}
 
-      {/* Sidebar */}
       <aside className={`
         fixed lg:static inset-y-0 left-0 z-50
         w-72 glass-sidebar text-primary-foreground
@@ -71,7 +103,7 @@ export function AppLayout({ children, title }: LayoutProps) {
             </div>
             <div>
               <p className="font-semibold text-sm text-white">{user?.name}</p>
-              <p className="text-xs text-muted/70">{user?.role.replace('_', ' ')}</p>
+              <p className="text-xs text-muted/70">{roleLabels[user?.role || ""] || user?.role}</p>
             </div>
           </div>
         </div>
@@ -88,8 +120,8 @@ export function AppLayout({ children, title }: LayoutProps) {
                     : "text-white/70 hover:bg-white/5 hover:text-white"
                   }
                 `}>
-                  <item.icon className={`w-5 h-5 ${isActive ? "text-white" : "text-white/70"}`} />
-                  <span className="font-medium">{item.label}</span>
+                  <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : "text-white/70"}`} />
+                  <span className="font-medium flex-1">{item.label}</span>
                 </div>
               </Link>
             );
@@ -107,9 +139,7 @@ export function AppLayout({ children, title }: LayoutProps) {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
         <header className="h-20 bg-white/80 backdrop-blur-md border-b border-border/50 flex items-center justify-between px-6 sticky top-0 z-30">
           <div className="flex items-center gap-4">
             <button 
@@ -125,13 +155,16 @@ export function AppLayout({ children, title }: LayoutProps) {
             <Link href="/notifications">
               <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground rounded-full">
                 <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full border border-white"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-destructive text-white rounded-full text-[10px] font-bold flex items-center justify-center px-1 border border-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </Button>
             </Link>
           </div>
         </header>
 
-        {/* Page Content */}
         <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             {children}

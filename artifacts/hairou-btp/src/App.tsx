@@ -8,6 +8,7 @@ import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 // Page Imports
 import Login from "@/pages/login";
+import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import Tasks from "@/pages/tasks";
@@ -19,8 +20,7 @@ import Messages from "@/pages/messages";
 import Notifications from "@/pages/notifications";
 import Administration from "@/pages/administration";
 
-// Register JWT token getter — the API client will attach it as Bearer on every request
-// without interfering with Content-Type or other headers
+// Register JWT token getter
 setAuthTokenGetter(() => localStorage.getItem('hairou_token'));
 
 const queryClient = new QueryClient({
@@ -32,7 +32,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// Auth Guard Component
 function ProtectedRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
   
@@ -51,6 +50,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
       <Route path="/" component={() => <Redirect to="/dashboard" />} />
       
       <Route path="/dashboard">

@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Shield, Loader2, Pencil, Trash2, UserCheck, UserX } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Shield, Loader2, Pencil, Trash2, UserCheck, UserX, Clock, CheckCircle2, XCircle, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 
 const roleLabels: Record<string, { label: string; color: string }> = {
@@ -28,12 +30,37 @@ const PERMISSIONS = [
   { key: "canManagePointage", label: "Gérer le pointage" },
 ];
 
+async function apiFetch(path: string, options?: RequestInit) {
+  const token = localStorage.getItem("hairou_token");
+  const res = await fetch(path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || "Erreur serveur");
+  }
+  return res.json();
+}
+
 export default function Administration() {
   const { data: users, isLoading } = useListUsers();
   const { user: currentUser } = useAuth();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [approveTarget, setApproveTarget] = useState<any>(null);
+  const [rejectTarget, setRejectTarget] = useState<any>(null);
+
+  // Filter pending accounts from the full users list
+  const pendingUsers = (users as any[])?.filter((u: any) => u.status === "PENDING") || [];
+  const approvedUsers = (users as any[])?.filter((u: any) => u.status !== "PENDING") || [];
 
   if (currentUser?.role !== 'ADMIN') {
     return (
@@ -58,13 +85,56 @@ export default function Administration() {
           </Button>
         </div>
 
+        {/* Pending accounts section */}
+        {pendingUsers.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 bg-amber-100/60 border-b border-amber-200 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-600" />
+              <h3 className="font-bold text-amber-900">Comptes en attente d'approbation</h3>
+              <Badge variant="destructive" className="ml-auto">{pendingUsers.length}</Badge>
+            </div>
+            <div className="divide-y divide-amber-200/60">
+              {pendingUsers.map((u: any) => (
+                <div key={u.id} className="px-6 py-4 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center text-sm font-bold text-amber-800 flex-shrink-0">
+                    {u.name?.substring(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-foreground">{u.name}</p>
+                    <p className="text-sm text-muted-foreground">{u.email}</p>
+                    {u.phone && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Phone className="w-3 h-3" />
+                        {u.phone}
+                      </p>
+                    )}
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${roleLabels[u.role]?.color || ''}`}>
+                    {roleLabels[u.role]?.label || u.role}
+                  </span>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => setApproveTarget(u)} className="rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-sm">
+                      <CheckCircle2 className="w-4 h-4 mr-1" />
+                      Approuver
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setRejectTarget(u)} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50">
+                      <XCircle className="w-4 h-4 mr-1" />
+                      Rejeter
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Summary */}
         <div className="grid grid-cols-3 gap-4">
           {Object.entries(roleLabels).map(([role, cfg]) => (
             <div key={role} className="bg-white rounded-2xl border border-border/50 p-4 shadow-sm">
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">{cfg.label}</p>
               <p className="text-3xl font-display font-bold text-foreground mt-1">
-                {users?.filter(u => u.role === role).length ?? 0}
+                {approvedUsers?.filter((u: any) => u.role === role).length ?? 0}
               </p>
             </div>
           ))}
@@ -87,7 +157,7 @@ export default function Administration() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {users?.map(u => (
+                {approvedUsers?.map((u: any) => (
                   <tr key={u.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -111,21 +181,11 @@ export default function Administration() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditTarget(u)}
-                          className="w-8 h-8 text-muted-foreground hover:text-primary"
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => setEditTarget(u)} className="w-8 h-8 text-muted-foreground hover:text-primary">
                           <Pencil className="w-4 h-4" />
                         </Button>
                         {u.id !== currentUser?.id && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeleteTarget(u)}
-                            className="w-8 h-8 text-muted-foreground hover:text-destructive"
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(u)} className="w-8 h-8 text-muted-foreground hover:text-destructive">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
@@ -161,13 +221,183 @@ export default function Administration() {
         )}
 
         {/* Delete confirmation */}
-        {deleteTarget && (
-          <DeleteUserModal user={deleteTarget} onClose={() => setDeleteTarget(null)} />
+        {deleteTarget && <DeleteUserModal user={deleteTarget} onClose={() => setDeleteTarget(null)} />}
+
+        {/* Approve modal */}
+        {approveTarget && (
+          <ApproveModal
+            user={approveTarget}
+            onClose={() => setApproveTarget(null)}
+            onSuccess={() => {
+              setApproveTarget(null);
+              queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+              toast({ title: `${approveTarget.name} approuvé avec succès` });
+            }}
+          />
+        )}
+
+        {/* Reject modal */}
+        {rejectTarget && (
+          <RejectModal
+            user={rejectTarget}
+            onClose={() => setRejectTarget(null)}
+            onSuccess={() => {
+              setRejectTarget(null);
+              queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+              toast({ title: `Compte de ${rejectTarget.name} refusé` });
+            }}
+          />
         )}
       </div>
     </AppLayout>
   );
 }
+
+// ─── Approve Modal ──────────────────────────────────────────────────────────
+
+function ApproveModal({ user, onClose, onSuccess }: { user: any; onClose: () => void; onSuccess: () => void }) {
+  const [role, setRole] = useState(user.role || "OUVRIER");
+  const [permissions, setPermissions] = useState({
+    canAddWorkers: false,
+    canDeleteWorkers: false,
+    canEditWorkers: false,
+    canAddExpenses: true,
+    canDeleteExpenses: false,
+    canAddProjects: role === "CHEF_CHANTIER",
+    canViewFinances: false,
+    canManagePointage: role === "CHEF_CHANTIER",
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleApprove = async () => {
+    setIsLoading(true);
+    try {
+      await apiFetch(`/api/users/${user.id}/approve`, {
+        method: "POST",
+        body: JSON.stringify({ role, permissions }),
+      });
+      onSuccess();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[520px] rounded-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl text-green-700">Approuver le compte</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-5 mt-2">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <p className="font-semibold text-green-800">{user.name}</p>
+            <p className="text-sm text-green-700">{user.email}</p>
+            {user.phone && <p className="text-xs text-green-600 mt-1">{user.phone}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Rôle attribué</Label>
+            <Select value={role} onValueChange={r => {
+              setRole(r);
+              setPermissions(p => ({ ...p, canAddProjects: r === "CHEF_CHANTIER", canManagePointage: r === "CHEF_CHANTIER" }));
+            }}>
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="OUVRIER">Ouvrier</SelectItem>
+                <SelectItem value="CHEF_CHANTIER">Chef de Chantier</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {role !== "ADMIN" && (
+            <div className="space-y-3">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Permissions accordées</Label>
+              <div className="grid grid-cols-2 gap-2 bg-muted/30 rounded-xl p-4">
+                {PERMISSIONS.map(perm => (
+                  <label key={perm.key} className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={(permissions as any)[perm.key]}
+                      onChange={e => setPermissions({ ...permissions, [perm.key]: e.target.checked })}
+                      className="w-4 h-4 accent-primary rounded"
+                    />
+                    {perm.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl">Annuler</Button>
+            <Button onClick={handleApprove} disabled={isLoading} className="flex-1 rounded-xl bg-green-600 hover:bg-green-700 text-white">
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4 mr-2" />Approuver</>}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Reject Modal ────────────────────────────────────────────────────────────
+
+function RejectModal({ user, onClose, onSuccess }: { user: any; onClose: () => void; onSuccess: () => void }) {
+  const [reason, setReason] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleReject = async () => {
+    setIsLoading(true);
+    try {
+      await apiFetch(`/api/users/${user.id}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      onSuccess();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[420px] rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl text-destructive">Refuser le compte</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <p className="text-muted-foreground text-sm">
+            Vous allez refuser le compte de <span className="font-bold text-foreground">{user.name}</span>.
+          </p>
+          <div className="space-y-2">
+            <Label>Motif du refus (optionnel)</Label>
+            <Textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Ex: Informations incorrectes, demande en doublon..."
+              className="rounded-xl resize-none"
+              rows={3}
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl">Annuler</Button>
+            <Button onClick={handleReject} disabled={isLoading} variant="destructive" className="flex-1 rounded-xl">
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><XCircle className="w-4 h-4 mr-2" />Refuser</>}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── User Form ───────────────────────────────────────────────────────────────
 
 function UserForm({ existingUser, onSuccess }: { existingUser?: any; onSuccess: () => void }) {
   const queryClient = useQueryClient();
@@ -283,6 +513,8 @@ function UserForm({ existingUser, onSuccess }: { existingUser?: any; onSuccess: 
     </form>
   );
 }
+
+// ─── Delete Modal ────────────────────────────────────────────────────────────
 
 function DeleteUserModal({ user, onClose }: { user: any; onClose: () => void }) {
   const queryClient = useQueryClient();

@@ -10,6 +10,8 @@ import expensesRouter from "./expenses.js";
 import messagesRouter from "./messages.js";
 import notificationsRouter from "./notifications.js";
 import activityRouter from "./activity.js";
+import reclamationsRouter from "./reclamations.js";
+import presenceConfirmationsRouter from "./presenceConfirmations.js";
 
 const router: IRouter = Router();
 
@@ -25,5 +27,7 @@ router.use("/messages", messagesRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/activity", activityRouter);
 router.use("/dashboard", activityRouter);
+router.use("/reclamations", reclamationsRouter);
+router.use("/presence-confirmations", presenceConfirmationsRouter);
 
 export default router;

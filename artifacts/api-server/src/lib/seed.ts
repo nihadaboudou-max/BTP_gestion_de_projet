@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, isNull, sql } from "drizzle-orm";
 import { hashPassword } from "./auth.js";
 import { logger } from "./logger.js";
 
@@ -20,6 +20,7 @@ export async function seedIfEmpty() {
           name: "Administrateur HAIROU",
           passwordHash: adminHash,
           role: "ADMIN",
+          status: "APPROVED",
           isActive: true,
           canAddWorkers: true,
           canDeleteWorkers: true,
@@ -35,6 +36,7 @@ export async function seedIfEmpty() {
           name: "Jean-Baptiste Konan",
           passwordHash: chefHash,
           role: "CHEF_CHANTIER",
+          status: "APPROVED",
           isActive: true,
           canAddWorkers: true,
           canDeleteWorkers: false,
@@ -50,6 +52,7 @@ export async function seedIfEmpty() {
           name: "Mamadou Traoré",
           passwordHash: chefHash,
           role: "OUVRIER",
+          status: "APPROVED",
           isActive: true,
           canAddWorkers: false,
           canDeleteWorkers: false,
@@ -67,12 +70,17 @@ export async function seedIfEmpty() {
       logger.info("Users exist — running permission migrations...");
     }
 
-    // Always ensure all CHEF_CHANTIER have can_add_projects = true
-    // This acts as an auto-migration for existing deployments
+    // Auto-migration: ensure all CHEF_CHANTIER have can_add_projects = true
     await db
       .update(usersTable)
       .set({ canAddProjects: true })
       .where(eq(usersTable.role, "CHEF_CHANTIER"));
+
+    // Auto-migration: set status=APPROVED for any users without a status set
+    await db
+      .update(usersTable)
+      .set({ status: "APPROVED" })
+      .where(isNull(usersTable.status));
 
     logger.info("Permission migration complete");
   } catch (err) {

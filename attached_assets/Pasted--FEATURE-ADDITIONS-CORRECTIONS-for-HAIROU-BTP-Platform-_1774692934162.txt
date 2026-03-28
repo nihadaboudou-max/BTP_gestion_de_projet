@@ -1,0 +1,250 @@
+## FEATURE ADDITIONS & CORRECTIONS for HAIROU BTP Platform
+
+---
+
+## UML ROLES & PERMISSIONS MATRIX
+
+ADMIN
+ ├── Accès complet lecture/écriture/suppression
+ ├── Valide les nouveaux comptes (ouvriers + chefs)
+ ├── Attribue les privilèges par utilisateur
+ ├── Voit tout en temps réel (pointages, dépenses, messages)
+ ├── Reçoit toutes les archives hebdomadaires
+ └── Peut créer projets, tâches, personnel, dépenses
+
+CHEF_CHANTIER
+ ├── Crée et soumet les fiches de pointage
+ ├── Ajoute des ouvriers au système
+ ├── Ajoute des dépenses liées à un projet
+ ├── Voit les projets auxquels il est assigné
+ ├── Voit les réclamations et commentaires des ouvriers
+ └── NE PEUT PAS valider comptes ni modifier privilèges
+
+OUVRIER
+ ├── Crée un compte → en attente validation admin
+ ├── Voit UNIQUEMENT ses tâches assignées (lieu, date, description)
+ ├── Voit son historique de pointage (créé par chef/admin)
+ ├── Confirme présence/absence la veille (avant 20h)
+ ├── Fait des réclamations sur une fiche de pointage
+ ├── Laisse des commentaires visibles par chef + admin
+ └── NE PEUT PAS créer projets, tâches, dépenses, ni pointer d'autres ouvriers
+
+---
+
+## 1. SYSTÈME D'INSCRIPTION & VALIDATION DE COMPTE
+
+### Page d'inscription publique (/register)
+- Formulaire: Nom complet, Email, Téléphone, Rôle souhaité (Ouvrier / Chef de Chantier), Mot de passe
+- Après soumission → statut "En attente de validation"
+- Message affiché: "Votre compte est en cours de validation par l'administrateur."
+- Socket.io → notification immédiate à l'admin: "Nouveau compte en attente: [Nom] - [Rôle]"
+- Compte créé en DB avec status: PENDING
+
+### Admin — Gestion des comptes en attente
+- Badge rouge sur l'icône Administration si comptes en attente
+- Liste des comptes pending: Nom, Email, Rôle demandé, Date inscription
+- Actions par compte:
+  * ✅ Approuver → ouvre modal de privileges
+  * ❌ Rejeter → avec motif (envoyé par notification à l'utilisateur)
+
+### Modal d'attribution des privilèges (à l'approbation)
+- Confirmer le rôle: Ouvrier / Chef de Chantier
+- Si Chef de Chantier, cocher les droits:
+  * [x] Peut créer des fiches de pointage
+  * [x] Peut ajouter des ouvriers
+  * [x] Peut ajouter des dépenses
+  * [x] Peut voir les finances du projet
+  * [ ] Peut modifier des dépenses
+  * [ ] Peut supprimer des pointages
+- Si Ouvrier, droits fixes (non modifiables):
+  * Voir ses tâches assignées
+  * Voir son historique de pointage
+  * Confirmer présence/absence
+  * Faire des réclamations/commentaires
+
+### Comptes par défaut (seed DB au démarrage)
+- Admin:         admin@hairou.com     / Admin2024!    / ADMIN (approuvé)
+- Chef chantier: chef@hairou.com      / Chef2024!     / CHEF_CHANTIER (approuvé, tous droits)
+- Ouvrier:       ouvrier@hairou.com   / Ouvrier2024!  / OUVRIER (approuvé)
+
+---
+
+## 2. POINTAGE — LOGIQUE CORRIGÉE
+
+### Qui pointe:
+- UNIQUEMENT le Chef de Chantier ou l'Admin
+- L'ouvrier NE crée PAS de fiche de pointage
+
+### Fiche de pointage (créée par Chef/Admin):
+- Champs: Date, Projet (dropdown synchronisé), Chef responsable (auto)
+- Liste des ouvriers du projet avec:
+  * Statut: Présent / Absent / Demi-journée
+  * Heure arrivée, heure départ
+  * Heures travaillées (calculé auto)
+  * Salaire journalier (depuis fiche ouvrier)
+  * Total du jour (calculé auto)
+  * Note optionnelle par ouvrier
+- Signature électronique du chef (signature_pad)
+- Soumission → fiche verrouillée, notification admin + ouvriers concernés
+
+### Ce que voit l'ouvrier (lecture seule):
+- Onglet "Mon Pointage" → liste de ses fiches de pointage
+- Par fiche: Date, Projet, Statut (Présent/Absent/Demi), Heures, Salaire du jour
+- Cumul: Total jours travaillés ce mois, Total salaire dû
+- Bouton "Faire une réclamation" sur chaque fiche
+
+### Confirmation de présence (par l'ouvrier):
+- Chaque soir (avant 20h), l'ouvrier reçoit une notification:
+  "Confirmez-vous votre présence demain sur [Projet] ?"
+- L'ouvrier répond: ✅ Présent / ❌ Absent / ⚠️ Incertain
+- Le chef voit ces confirmations dans la fiche du lendemain (pré-remplies)
+- Si absent confirmé → marqué automatiquement absent sur la fiche
+
+---
+
+## 3. RÉCLAMATIONS & COMMENTAIRES (Ouvrier)
+
+### Réclamation sur fiche de pointage:
+- Bouton "Réclamer" sur chaque ligne de pointage
+- Formulaire: Type de réclamation (Erreur de salaire / Erreur de présence / Autre)
+- Description textuelle (max 500 caractères)
+- Statut réclamation: En attente / Traitée / Rejetée
+- Notification immédiate → Admin + Chef du projet concerné
+- L'admin/chef peut répondre à la réclamation (visible par l'ouvrier)
+
+### Commentaires généraux:
+- Section "Mes Commentaires" dans l'espace ouvrier
+- L'ouvrier écrit un commentaire libre lié à un projet
+- Visible par: Admin + Chefs assignés au projet
+- L'admin/chef peut répondre
+- Historique complet des échanges
+
+---
+
+## 4. SYNCHRONISATION DES PROJETS (Temps réel)
+
+### Quand un projet est créé:
+- Socket.io broadcast → tous les utilisateurs connectés voient le nouveau projet apparaître
+- Le projet apparaît dans:
+  * Module Pointage → dropdown "Sélectionner un projet"
+  * Module Dépenses → dropdown "Attribuer à un projet"
+  * Tableau de bord → liste des projets actifs
+  * Module Tâches → filtre par projet
+- Les ouvriers assignés au projet reçoivent une notification: "Vous avez été assigné au projet [Nom]"
+
+### Quand une dépense est ajoutée:
+- Budget consommé du projet mis à jour en temps réel partout
+- Admin voit la mise à jour immédiate sur son dashboard
+
+### Quand une fiche de pointage est soumise:
+- Admin reçoit notification temps réel
+- Masse salariale du projet mise à jour
+- Historique de l'ouvrier mis à jour immédiatement
+
+---
+
+## 5. ESPACE OUVRIER (Dashboard simplifié)
+
+Dashboard ouvrier affiche:
+┌─────────────────────────────────────────┐
+│  Bonjour [Nom] — [Rôle]                 │
+│  Projet actuel: [Nom projet]            │
+├─────────────────────────────────────────┤
+│  MES TÂCHES DU JOUR                     │
+│  [Tâche 1] — [Lieu] — [Date] — [Statut]│
+│  [Tâche 2] — [Lieu] — [Date] — [Statut]│
+├─────────────────────────────────────────┤
+│  MON POINTAGE CE MOIS                   │
+│  Jours présents: 18 | Absences: 2      │
+│  Salaire dû: 180 000 FCFA              │
+├─────────────────────────────────────────┤
+│  CONFIRMATION PRÉSENCE DEMAIN          │
+│  [✅ Présent] [❌ Absent] [⚠️ Incertain]│
+├─────────────────────────────────────────┤
+│  MES RÉCLAMATIONS EN COURS: 1          │
+│  [Voir mes réclamations]               │
+└─────────────────────────────────────────┘
+
+Navigation ouvrier (simplifiée, 4 onglets seulement):
+- 🏠 Accueil | 📋 Mes Tâches | 🕐 Mon Pointage | 💬 Mes Messages
+
+---
+
+## 6. CORRECTIONS TECHNIQUES CRITIQUES
+
+### Correction erreur de connexion:
+- Remplacer toute logique d'auth côté frontend par appels API réels
+- POST /api/auth/login → retourne JWT token + user object
+- Stocker token dans localStorage avec clé 'hairou_token'
+- Axios interceptor ajoute Authorization: Bearer [token] à chaque requête
+- En cas d'erreur 401 → redirect automatique vers /login
+- ZERO erreur console — wraper TOUS les appels dans try/catch
+
+### Correction synchronisation:
+- useContext global pour: currentUser, projects, notifications
+- React Query ou useEffect avec socket listeners pour sync temps réel
+- Toute mutation (POST/PUT/DELETE) → invalide le cache et refetch
+
+### Validation formulaires:
+- Chaque champ validé avant soumission
+- Messages d'erreur en français sous chaque champ
+- Bouton submit désactivé si formulaire invalide
+
+---
+
+## 7. BASE DE DONNÉES — TABLES ADDITIONNELLES
+```sql
+-- Comptes en attente
+ALTER TABLE users ADD COLUMN status ENUM('PENDING','APPROVED','REJECTED') DEFAULT 'PENDING';
+ALTER TABLE users ADD COLUMN rejection_reason TEXT;
+ALTER TABLE users ADD COLUMN approved_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN approved_by INTEGER REFERENCES users(id);
+
+-- Permissions granulaires
+CREATE TABLE user_permissions (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  permission_key VARCHAR(50) NOT NULL, -- 'can_add_workers', etc.
+  granted BOOLEAN DEFAULT false,
+  granted_by INTEGER REFERENCES users(id),
+  granted_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Confirmations de présence
+CREATE TABLE presence_confirmations (
+  id SERIAL PRIMARY KEY,
+  worker_id INTEGER REFERENCES users(id),
+  project_id INTEGER REFERENCES projects(id),
+  date DATE NOT NULL,
+  status ENUM('PRESENT','ABSENT','UNCERTAIN'),
+  confirmed_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Réclamations
+CREATE TABLE reclamations (
+  id SERIAL PRIMARY KEY,
+  worker_id INTEGER REFERENCES users(id),
+  pointage_sheet_id INTEGER REFERENCES pointage_sheets(id),
+  type ENUM('ERREUR_SALAIRE','ERREUR_PRESENCE','AUTRE'),
+  description TEXT NOT NULL,
+  status ENUM('EN_ATTENTE','TRAITEE','REJETEE') DEFAULT 'EN_ATTENTE',
+  admin_response TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  resolved_at TIMESTAMP
+);
+
+-- Commentaires ouvriers
+CREATE TABLE worker_comments (
+  id SERIAL PRIMARY KEY,
+  worker_id INTEGER REFERENCES users(id),
+  project_id INTEGER REFERENCES projects(id),
+  content TEXT NOT NULL,
+  parent_id INTEGER REFERENCES worker_comments(id), -- pour réponses
+  created_at TIMESTAMP DEFAULT NOW(),
+  read_by_admin BOOLEAN DEFAULT false
+);
+```
+
+---
+
+## 8. API ENDPOINTS ADDITIONNELS
