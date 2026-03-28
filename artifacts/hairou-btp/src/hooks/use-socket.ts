@@ -40,6 +40,12 @@ export function useSocket() {
     const onRefreshNotifications = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
     };
+    const onRefreshUsers = () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    };
+    const onRefreshPointage = () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pointage"] });
+    };
     const onNotification = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
     };
@@ -47,12 +53,16 @@ export function useSocket() {
     socket.on("refresh:projects", onRefreshProjects);
     socket.on("refresh:tasks", onRefreshTasks);
     socket.on("refresh:notifications", onRefreshNotifications);
+    socket.on("refresh:users", onRefreshUsers);
+    socket.on("refresh:pointage", onRefreshPointage);
     socket.on("notification", onNotification);
 
     return () => {
       socket.off("refresh:projects", onRefreshProjects);
       socket.off("refresh:tasks", onRefreshTasks);
       socket.off("refresh:notifications", onRefreshNotifications);
+      socket.off("refresh:users", onRefreshUsers);
+      socket.off("refresh:pointage", onRefreshPointage);
       socket.off("notification", onNotification);
     };
   }, [user, queryClient]);

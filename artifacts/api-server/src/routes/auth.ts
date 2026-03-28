@@ -4,7 +4,7 @@ import { usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authenticate, comparePassword, generateTokens, hashPassword, verifyRefreshToken, type AuthRequest } from "../lib/auth.js";
 import { activityLogsTable } from "@workspace/db";
-import { createNotification, notifyAdmins } from "../lib/notifications.js";
+import { createNotification, notifyAdmins, broadcastRefresh } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -117,6 +117,8 @@ router.post("/register", async (req, res) => {
       relatedId: user.id,
       relatedType: "user",
     });
+
+    broadcastRefresh("refresh:users");
 
     res.status(201).json({
       message: "Compte créé. En attente de validation par l'administrateur.",

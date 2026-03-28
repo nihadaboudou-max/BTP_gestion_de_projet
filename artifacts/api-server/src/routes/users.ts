@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, activityLogsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authenticate, requireAdmin, hashPassword, type AuthRequest } from "../lib/auth.js";
-import { createNotification } from "../lib/notifications.js";
+import { createNotification, broadcastRefresh } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -104,6 +104,8 @@ router.post("/:id/approve", authenticate, requireAdmin, async (req: AuthRequest,
       entityId: id,
     });
 
+    broadcastRefresh("refresh:users");
+
     res.json(formatUser(user));
   } catch (err) {
     req.log.error({ err }, "Approve user error");
@@ -136,6 +138,8 @@ router.post("/:id/reject", authenticate, requireAdmin, async (req: AuthRequest, 
       entityType: "user",
       entityId: id,
     });
+
+    broadcastRefresh("refresh:users");
 
     res.json(formatUser(user));
   } catch (err) {
