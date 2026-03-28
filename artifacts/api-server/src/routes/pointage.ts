@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { pointageSheetsTable, pointageEntriesTable, personnelTable, projectsTable, usersTable, activityLogsTable } from "@workspace/db";
+import { pointageSheetsTable, pointageEntriesTable, personnelTable, personnelProjectsTable, projectsTable, usersTable, activityLogsTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { createNotification, notifyAdmins, broadcastRefresh } from "../lib/notifications.js";
@@ -80,6 +80,80 @@ async function formatSheetWithEntries(sheet: typeof pointageSheetsTable.$inferSe
 }
 
 // ─── routes ───────────────────────────────────────────────────────────────────
+
+// GET /api/pointage/workers-for-project/:projectId — list all personnel assigned to a project
+router.get("/workers-for-project/:projectId", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const projectId = parseInt(req.params.projectId);
+    const workers = await db
+      .select({
+        id: personnelTable.id,
+        name: personnelTable.name,
+        trade: personnelTable.trade,
+        dailyWage: personnelTable.dailyWage,
+        isActive: personnelTable.isActive,
+      })
+      .from(personnelProjectsTable)
+      .innerJoin(personnelTable, eq(personnelTable.id, personnelProjectsTable.personnelId))
+      .where(and(eq(personnelProjectsTable.projectId, projectId), eq(personnelTable.isActive, true)));
+
+    res.json(workers);
+  } catch (err) {
+    req.log.error({ err }, "Get workers for project error");
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
+// GET /api/pointage/my-history — worker's own pointage history (read-only)
+router.get("/my-history", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    // Find all entries where this worker appears as personnelId
+    // We need to cross-reference personnel table to find if this user has a personnel record
+    const entries = await db
+      .select({
+        sheetId: pointageEntriesTable.sheetId,
+        entryId: pointageEntriesTable.id,
+        status: pointageEntriesTable.status,
+        arrivalTime: pointageEntriesTable.arrivalTime,
+        departureTime: pointageEntriesTable.departureTime,
+        hoursWorked: pointageEntriesTable.hoursWorked,
+        payMode: pointageEntriesTable.payMode,
+        amountDue: pointageEntriesTable.amountDue,
+        notes: pointageEntriesTable.notes,
+      })
+      .from(pointageEntriesTable)
+      .innerJoin(personnelTable, eq(personnelTable.id, pointageEntriesTable.personnelId))
+      .where(sql`LOWER(${personnelTable.name}) = LOWER((SELECT name FROM users WHERE id = ${userId} LIMIT 1))`);
+
+    // Get unique sheet IDs
+    const sheetIds = [...new Set(entries.map(e => e.sheetId))];
+    if (sheetIds.length === 0) return res.json([]);
+
+    const sheets = await db
+      .select()
+      .from(pointageSheetsTable)
+      .where(sql`${pointageSheetsTable.id} = ANY(${sql`ARRAY[${sql.join(sheetIds.map(id => sql`${id}`), sql`, `)}]::int[]`})`);
+
+    const result = await Promise.all(sheets.map(async (sheet) => {
+      const formatted = await formatSheet(sheet);
+      const myEntry = entries.find(e => e.sheetId === sheet.id);
+      return {
+        ...formatted,
+        myEntry: myEntry ? {
+          ...myEntry,
+          hoursWorked: myEntry.hoursWorked ? parseFloat(myEntry.hoursWorked as string) : null,
+          amountDue: myEntry.amountDue ? parseFloat(myEntry.amountDue as string) : null,
+        } : null,
+      };
+    }));
+
+    res.json(result.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+  } catch (err) {
+    req.log.error({ err }, "My history error");
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
 
 router.get("/", authenticate, async (req: AuthRequest, res) => {
   try {
