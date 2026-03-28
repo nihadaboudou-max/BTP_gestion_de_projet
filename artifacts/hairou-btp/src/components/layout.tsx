@@ -2,6 +2,7 @@ import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useListNotifications } from "@workspace/api-client-react";
+import { useSocket } from "@/hooks/use-socket";
 import { 
   LayoutDashboard, 
   HardHat, 
@@ -33,6 +34,7 @@ export function AppLayout({ children, title }: LayoutProps) {
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { data: notifications } = useListNotifications({ query: { refetchInterval: 30000 } });
+  useSocket();
 
   const unreadCount = notifications?.filter((n: any) => !n.isRead).length ?? 0;
   const isAdmin = user?.role === "ADMIN";

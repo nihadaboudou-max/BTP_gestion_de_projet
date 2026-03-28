@@ -115,6 +115,8 @@ export default function PointageNew() {
   // Signature pads: { workerId_arrival, workerId_departure, chef }
   const padRefs = useRef<Record<string, SignaturePad>>({});
   const canvasRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
+  // Track which canvas element each pad is bound to (detect remounts)
+  const padCanvasTracker = useRef<Record<string, HTMLCanvasElement>>({});
 
   // ─── Load workers when project changes ──────────────────────────────────────
   useEffect(() => {
@@ -156,39 +158,47 @@ export default function PointageNew() {
   }, [projectId]);
 
   // ─── Re-init signature pads whenever workers change ─────────────────────────
+  // Use a small timeout to ensure canvases are laid out and have real dimensions
   useEffect(() => {
-    workers.forEach(w => {
-      const arrKey = `arr_${w.personnelId}`;
-      const depKey = `dep_${w.personnelId}`;
-      [arrKey, depKey].forEach(key => {
-        const canvas = canvasRefs.current[key];
-        if (canvas && !padRefs.current[key]) {
-          try {
-            const pad = new SignaturePad(canvas, {
-              backgroundColor: "rgb(255,255,255)",
-              penColor: "rgb(15,45,76)",
-              minWidth: 1,
-              maxWidth: 2.5,
-            });
-            padRefs.current[key] = pad;
-          } catch {}
-        }
+    const initPad = (key: string, opts: object) => {
+      const canvas = canvasRefs.current[key];
+      if (!canvas) return;
+
+      // Destroy stale pad if canvas element was remounted
+      if (padRefs.current[key] && padCanvasTracker.current[key] !== canvas) {
+        padRefs.current[key].off();
+        delete padRefs.current[key];
+        delete padCanvasTracker.current[key];
+      }
+
+      // Resize canvas buffer to actual CSS display dimensions (prevents coordinate offset)
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.round(rect.width) || canvas.offsetWidth || 350;
+      const h = Math.round(rect.height) || canvas.offsetHeight || 100;
+      if (w > 0 && h > 0) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+
+      if (!padRefs.current[key]) {
+        try {
+          const pad = new SignaturePad(canvas, { backgroundColor: "rgb(255,255,255)", ...opts });
+          padRefs.current[key] = pad;
+          padCanvasTracker.current[key] = canvas;
+        } catch {}
+      }
+    };
+
+    const timer = setTimeout(() => {
+      workers.forEach(w => {
+        initPad(`arr_${w.personnelId}`, { penColor: "rgb(15,45,76)", minWidth: 1, maxWidth: 2.5 });
+        initPad(`dep_${w.personnelId}`, { penColor: "rgb(20,83,45)", minWidth: 1, maxWidth: 2.5 });
       });
-    });
-    // Chef pad
-    const chefCanvas = canvasRefs.current["chef"];
-    if (chefCanvas && !padRefs.current["chef"]) {
-      try {
-        const pad = new SignaturePad(chefCanvas, {
-          backgroundColor: "rgb(255,255,255)",
-          penColor: "rgb(15,45,76)",
-          minWidth: 1.5,
-          maxWidth: 3,
-        });
-        padRefs.current["chef"] = pad;
-      } catch {}
-    }
-  });
+      initPad("chef", { penColor: "rgb(15,45,76)", minWidth: 1.5, maxWidth: 3 });
+    }, 80);
+
+    return () => clearTimeout(timer);
+  }, [workers.map(w => w.personnelId).join(","), workers.map(w => w.expanded).join(","), workers.map(w => w.status).join(",")]);
 
   const updateWorker = useCallback((idx: number, field: string, value: any) => {
     setWorkers(prev => prev.map((w, i) => i === idx ? { ...w, [field]: value } : w));
@@ -526,10 +536,8 @@ export default function PointageNew() {
             <div className="border-2 border-primary/30 rounded-xl overflow-hidden bg-white">
               <canvas
                 ref={el => { canvasRefs.current["chef"] = el; }}
-                width={600}
-                height={130}
                 className="w-full touch-none cursor-crosshair block"
-                style={{ touchAction: "none" }}
+                style={{ touchAction: "none", height: "130px", display: "block" }}
               />
             </div>
 
@@ -721,10 +729,8 @@ function WorkerCard({ worker: w, index, tasks, onChange, onToggle, canvasRefs, p
                 <div className="border border-border/60 rounded-xl overflow-hidden bg-gray-50">
                   <canvas
                     ref={el => { canvasRefs.current[arrKey] = el; }}
-                    width={350}
-                    height={100}
                     className="w-full cursor-crosshair touch-none block"
-                    style={{ touchAction: "none" }}
+                    style={{ touchAction: "none", height: "100px", display: "block" }}
                   />
                 </div>
                 <div className="flex items-center gap-2 mt-2">
@@ -762,10 +768,8 @@ function WorkerCard({ worker: w, index, tasks, onChange, onToggle, canvasRefs, p
                 <div className="border border-border/60 rounded-xl overflow-hidden bg-gray-50">
                   <canvas
                     ref={el => { canvasRefs.current[depKey] = el; }}
-                    width={350}
-                    height={100}
                     className="w-full cursor-crosshair touch-none block"
-                    style={{ touchAction: "none" }}
+                    style={{ touchAction: "none", height: "100px", display: "block" }}
                   />
                 </div>
                 <div className="flex items-center gap-2 mt-2">

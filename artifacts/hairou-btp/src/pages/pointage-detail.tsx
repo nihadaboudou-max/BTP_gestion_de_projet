@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRoute } from "wouter";
 import { AppLayout } from "@/components/layout";
 import { 
@@ -119,6 +119,39 @@ export default function PointageDetail() {
 
   const sigPad = useRef<any>(null);
   const chefSigPad = useRef<any>(null);
+
+  // Resize signature canvas to its actual display size when dialogs open
+  // This fixes drawing offset issues when canvas buffer ≠ CSS display size
+  useEffect(() => {
+    if (!isSignModalOpen) return;
+    const t = setTimeout(() => {
+      if (sigPad.current) {
+        const canvas = sigPad.current.getCanvas();
+        const w = canvas.offsetWidth || 440;
+        const h = canvas.offsetHeight || 180;
+        canvas.width = w;
+        canvas.height = h;
+        sigPad.current.clear();
+      }
+    }, 60);
+    return () => clearTimeout(t);
+  }, [isSignModalOpen]);
+
+  useEffect(() => {
+    if (!isChefSignOpen) return;
+    const t = setTimeout(() => {
+      if (chefSigPad.current) {
+        const canvas = chefSigPad.current.getCanvas();
+        const w = canvas.offsetWidth || 440;
+        const h = canvas.offsetHeight || 180;
+        canvas.width = w;
+        canvas.height = h;
+        chefSigPad.current.clear();
+      }
+    }, 60);
+    return () => clearTimeout(t);
+  }, [isChefSignOpen]);
+
   const submitMutation = useSubmitPointageSheet();
   const approveMutation = useApprovePointageSheet();
   const updateMutation = useUpdatePointageSheet();
@@ -669,7 +702,7 @@ export default function PointageDetail() {
             <SignatureCanvas
               ref={sigPad}
               penColor="#011638"
-              canvasProps={{ width: 440, height: 180, className: "w-full touch-none" }}
+              canvasProps={{ style: { width: "100%", height: "180px", display: "block", touchAction: "none" } }}
             />
           </div>
           <div className="flex gap-3">
@@ -697,7 +730,7 @@ export default function PointageDetail() {
             <SignatureCanvas
               ref={chefSigPad}
               penColor="#011638"
-              canvasProps={{ width: 440, height: 180, className: "w-full touch-none" }}
+              canvasProps={{ style: { width: "100%", height: "180px", display: "block", touchAction: "none" } }}
             />
           </div>
           <div className="flex gap-3">
