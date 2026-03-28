@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout";
-import { useListMessages, useSendMessage, useListUsers, useMarkMessageRead } from "@workspace/api-client-react";
+import { useListMessages, useListUsers, useMarkMessageRead } from "@workspace/api-client-react";
 import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,23 @@ import { MessageSquare, Send, Loader2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
+
+async function apiFetch(path: string, options?: RequestInit) {
+  const token = localStorage.getItem("hairou_token");
+  const res = await fetch(path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || "Erreur serveur");
+  }
+  return res.json();
+}
 
 export default function Messages() {
   const { data: messages, isLoading } = useListMessages();
@@ -147,24 +164,31 @@ function ComposeForm({ onSuccess }: { onSuccess: () => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: users } = useListUsers();
-
-  const sendMutation = useSendMessage({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
-        toast({ title: "Message envoyé avec succès" });
-        onSuccess();
-      },
-      onError: () => toast({ title: "Erreur", description: "Impossible d'envoyer le message.", variant: "destructive" })
-    }
-  });
-
+  const [isSending, setIsSending] = useState(false);
   const [form, setForm] = useState({ recipientId: "", subject: "", body: "" });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.recipientId || !form.subject || !form.body) return;
-    sendMutation.mutate({ data: { ...form, recipientId: parseInt(form.recipientId) } });
+    setIsSending(true);
+    try {
+      await apiFetch("/api/messages", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientId: parseInt(form.recipientId),
+          subject: form.subject,
+          body: form.body,
+        }),
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      toast({ title: "Message envoyé avec succès" });
+      setForm({ recipientId: "", subject: "", body: "" });
+      onSuccess();
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err?.message || "Impossible d'envoyer le message.", variant: "destructive" });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -183,18 +207,17 @@ function ComposeForm({ onSuccess }: { onSuccess: () => void }) {
           value={form.subject}
           onChange={e => setForm({ ...form, subject: e.target.value })}
           placeholder="Sujet du message"
-          required
           className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         />
       </div>
       <div className="space-y-2">
         <Label>Message *</Label>
-        <Textarea value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} placeholder="Écrivez votre message..." rows={5} className="rounded-xl" required />
+        <Textarea value={form.body} onChange={e => setForm({ ...form, body: e.target.value })} placeholder="Écrivez votre message..." rows={5} className="rounded-xl" />
       </div>
       <div className="pt-4 flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onSuccess} className="rounded-xl">Annuler</Button>
-        <Button type="submit" disabled={sendMutation.isPending || !form.recipientId || !form.subject || !form.body} className="rounded-xl bg-primary hover:bg-primary/90 text-white">
-          {sendMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+        <Button type="submit" disabled={isSending || !form.recipientId || !form.subject || !form.body} className="rounded-xl bg-primary hover:bg-primary/90 text-white">
+          {isSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
           Envoyer
         </Button>
       </div>

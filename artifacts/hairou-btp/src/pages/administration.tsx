@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout";
-import { useListUsers, useCreateUser, useUpdateUser, useDeleteUser } from "@workspace/api-client-react";
+import { useListUsers, useDeleteUser } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -402,19 +402,7 @@ function RejectModal({ user, onClose, onSuccess }: { user: any; onClose: () => v
 function UserForm({ existingUser, onSuccess }: { existingUser?: any; onSuccess: () => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-
-  const createMutation = useCreateUser({
-    mutation: {
-      onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/users"] }); toast({ title: "Utilisateur créé" }); onSuccess(); },
-      onError: (err: any) => toast({ title: "Erreur", description: err?.data?.message || "Impossible de créer l'utilisateur", variant: "destructive" })
-    }
-  });
-  const updateMutation = useUpdateUser({
-    mutation: {
-      onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/users"] }); toast({ title: "Utilisateur mis à jour" }); onSuccess(); },
-      onError: () => toast({ title: "Erreur de mise à jour", variant: "destructive" })
-    }
-  });
+  const [isLoading, setIsLoading] = useState(false);
 
   const [form, setForm] = useState({
     name: existingUser?.name || "",
@@ -435,17 +423,30 @@ function UserForm({ existingUser, onSuccess }: { existingUser?: any; onSuccess: 
   });
 
   const isEditing = !!existingUser;
-  const isPending = createMutation.isPending || updateMutation.isPending;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditing) {
-      const data: any = { name: form.name, email: form.email, role: form.role, isActive: form.isActive, permissions: form.permissions };
-      if (form.password) data.password = form.password;
-      updateMutation.mutate({ id: existingUser.id, data });
-    } else {
-      if (!form.password) { toast({ title: "Mot de passe requis", variant: "destructive" }); return; }
-      createMutation.mutate({ data: form });
+    if (!isEditing && !form.password) {
+      toast({ title: "Mot de passe requis", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      if (isEditing) {
+        const payload: any = { name: form.name, email: form.email, role: form.role, isActive: form.isActive, permissions: form.permissions };
+        if (form.password) payload.password = form.password;
+        await apiFetch(`/api/users/${existingUser.id}`, { method: "PUT", body: JSON.stringify(payload) });
+        toast({ title: "Utilisateur mis à jour" });
+      } else {
+        await apiFetch("/api/users", { method: "POST", body: JSON.stringify(form) });
+        toast({ title: "Utilisateur créé" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      onSuccess();
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err?.message || "Opération impossible", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -505,8 +506,8 @@ function UserForm({ existingUser, onSuccess }: { existingUser?: any; onSuccess: 
 
       <div className="pt-4 flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onSuccess} className="rounded-xl">Annuler</Button>
-        <Button type="submit" disabled={isPending} className="rounded-xl bg-primary hover:bg-primary/90 text-white">
-          {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+        <Button type="submit" disabled={isLoading} className="rounded-xl bg-primary hover:bg-primary/90 text-white">
+          {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           {isEditing ? "Enregistrer" : "Créer le compte"}
         </Button>
       </div>

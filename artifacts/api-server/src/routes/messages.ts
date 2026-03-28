@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { messagesTable, usersTable, projectsTable, activityLogsTable } from "@workspace/db";
 import { eq, or, and } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
-import { createNotification } from "../lib/notifications.js";
+import { createNotification, broadcastRefresh } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -83,6 +83,8 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
         relatedType: "message",
       });
     }
+
+    broadcastRefresh("refresh:messages");
 
     const formatted = await formatMessage(message);
     res.status(201).json(formatted);
