@@ -43,7 +43,7 @@ export async function seedIfEmpty() {
         canEditWorkers: true,
         canAddExpenses: true,
         canDeleteExpenses: false,
-        canAddProjects: false,
+        canAddProjects: true,
         canViewFinances: true,
         canManagePointage: true,
       },

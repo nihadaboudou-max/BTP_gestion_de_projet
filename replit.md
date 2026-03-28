@@ -24,7 +24,14 @@ HAIROU - Gestion BTP: A full-stack construction management platform. Built with 
 - **Backend field mapping**: personnel route accepts both `speciality`/`trade` and `nationalId`/`idNumber` from OpenAPI generated client; FREELANCE contract type maps to CDD
 - **Messages**: stored as single `content` field; frontend sends `subject`+`body` → backend stores as `[subject] body`
 - **All routes**: defensive `req.body ?? {}` on all destructuring
-- **Socket.io path**: `/api/socket.io`, rooms: `user:{userId}`
+- **Socket.io path**: `/api/socket.io`, rooms: `user:{userId}`; broadcasts `refresh:projects`, `refresh:tasks`, `refresh:notifications` to all clients; `notification` to per-user room
+- **Real-time sync**: `useSocket()` hook in `src/hooks/use-socket.ts` listens for refresh events → calls `queryClient.invalidateQueries` on projects/tasks/notifications
+- **Task confirmation flow**: `POST /api/tasks/:id/confirm` → sets `confirmedAt = now`, `status = EN_COURS`; notifies admins; broadcasts `refresh:tasks`
+- **Task status enum (DB)**: `A_FAIRE, EN_COURS, BLOQUEE, TERMINEE` (NOT EN_REVISION/TERMINE/FAIBLE)
+- **Task priority enum (DB)**: `BASSE, NORMALE, HAUTE, URGENTE` (NOT FAIBLE)
+- **Null dates**: `nullDate()` helper in routes converts `""` / `undefined` → `null` before inserting into PostgreSQL `date` columns
+- **Chef permissions**: `can_add_projects = true` by default in seed; chef sees ALL projects (not filtered by chefId); chef sees ALL tasks
+- **Seed**: `seedIfEmpty()` in `index.ts` auto-creates 3 default users when DB is empty (production deploy)
 
 ## Stack
 
@@ -89,7 +96,8 @@ artifacts-monorepo/
 - `POST /api/auth/refresh` - Refresh token
 - `GET/POST /api/users` - User management
 - `GET/POST /api/projects` - Projects
-- `GET/POST /api/tasks` - Tasks
+- `GET/POST /api/tasks` - Tasks (assignedToId field; A_FAIRE→EN_COURS→TERMINEE→BLOQUEE statuses)
+- `POST /api/tasks/:id/confirm` - Ouvrier confirms task (sets confirmedAt + status=EN_COURS)
 - `GET/POST /api/pointage` - Pointage sheets
 - `POST /api/pointage/:id/submit` - Submit sheet
 - `POST /api/pointage/:id/approve` - Approve/reject sheet

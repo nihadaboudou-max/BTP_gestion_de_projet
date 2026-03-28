@@ -8,6 +8,12 @@ export function setSocketServer(server: SocketServer) {
   io = server;
 }
 
+export function broadcastRefresh(event: string, data?: any) {
+  if (io) {
+    io.emit(event, data ?? {});
+  }
+}
+
 export async function createNotification(params: {
   userId: number;
   type: string;
@@ -28,6 +34,7 @@ export async function createNotification(params: {
 
     if (io) {
       io.to(`user:${params.userId}`).emit("notification", notif);
+      io.to(`user:${params.userId}`).emit("refresh:notifications", {});
     }
     return notif;
   } catch {

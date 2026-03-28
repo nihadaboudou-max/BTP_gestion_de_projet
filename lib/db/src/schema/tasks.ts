@@ -16,6 +16,7 @@ export const tasksTable = pgTable("tasks", {
   dueDate: date("due_date"),
   priority: taskPriorityEnum("priority").notNull().default("NORMALE"),
   status: taskStatusEnum("status").notNull().default("A_FAIRE"),
+  confirmedAt: timestamp("confirmed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
