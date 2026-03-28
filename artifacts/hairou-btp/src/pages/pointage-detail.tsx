@@ -18,8 +18,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { 
   CheckCircle, XCircle, PenTool, Loader2, Save, FileSignature, 
   Clock, DollarSign, AlertTriangle, MessageSquare, ChevronDown, ChevronUp,
-  User, Hammer, Lock
+  User, Hammer, Lock, FileDown
 } from "lucide-react";
+import { exportPointagePDF } from "@/lib/pdf-pointage";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import SignatureCanvas from "react-signature-canvas";
@@ -127,6 +128,45 @@ export default function PointageDetail() {
   const isChef = user?.role === 'CHEF_CHANTIER';
   const canApprove = isAdmin && sheet?.status === 'SOUMISE';
   const canSign = (isChef || isAdmin) && sheet?.status === 'BROUILLON' && !sheet?.chefSignature;
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPDF = async () => {
+    if (!sheet) return;
+    setIsExporting(true);
+    try {
+      await exportPointagePDF({
+        projectName: sheet.projectName || "Projet",
+        date: sheet.date,
+        chefName: sheet.chefName || "—",
+        status: sheet.status || "BROUILLON",
+        chefSignature: sheet.chefSignature || null,
+        chefSignedAt: sheet.chefSignedAt || null,
+        adminComment: sheet.adminComment || null,
+        entries: (sheet.entries || []).map((e: any) => ({
+          workerName: e.personnelName || "—",
+          status: e.status || "PRESENT",
+          arrivalTime: e.arrivalTime || null,
+          arrivalSignature: e.arrivalSignature || null,
+          arrivalSignedAt: e.arrivalSignedAt || null,
+          departureTime: e.departureTime || null,
+          departureSignature: e.departureSignature || null,
+          departureSignedAt: e.departureSignedAt || null,
+          hoursWorked: e.hoursWorked ?? null,
+          payMode: e.payMode || "PAR_JOUR",
+          dailyWage: e.dailyWage ?? null,
+          taskAmount: e.taskAmount ?? null,
+          taskProgressPct: e.taskProgressPct ?? null,
+          amountDue: e.amountDue ?? null,
+          notes: e.notes || null,
+        })),
+      });
+      toast({ title: "PDF téléchargé avec succès" });
+    } catch (err: any) {
+      toast({ title: "Erreur export PDF", description: err.message, variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Get current entry data (either edited or original)
   const getEntry = useCallback((entry: any) => ({
@@ -318,6 +358,17 @@ export default function PointageDetail() {
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3 mt-5 pt-5 border-t border-border/50">
+            {/* PDF Export — always available */}
+            <Button
+              variant="outline"
+              onClick={handleExportPDF}
+              disabled={isExporting}
+              className="rounded-xl border-primary/40 text-primary hover:bg-primary/5 ml-auto"
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileDown className="w-4 h-4 mr-2" />}
+              Exporter PDF
+            </Button>
+
             {isEditable && hasChanges && (
               <Button onClick={handleSave} disabled={isSaving} className="rounded-xl bg-primary text-white">
                 {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
