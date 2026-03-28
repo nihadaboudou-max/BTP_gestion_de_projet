@@ -3,6 +3,7 @@ import { Server as SocketServer } from "socket.io";
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { setSocketServer } from "./lib/notifications.js";
+import { seedIfEmpty } from "./lib/seed.js";
 
 const rawPort = process.env["PORT"];
 
@@ -41,10 +42,12 @@ io.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(port, (err?: Error) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
-  logger.info({ port }, "Server listening");
+seedIfEmpty().then(() => {
+  httpServer.listen(port, (err?: Error) => {
+    if (err) {
+      logger.error({ err }, "Error listening on port");
+      process.exit(1);
+    }
+    logger.info({ port }, "Server listening");
+  });
 });
