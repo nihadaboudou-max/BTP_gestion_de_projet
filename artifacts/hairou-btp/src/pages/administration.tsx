@@ -47,6 +47,12 @@ async function apiFetch(path: string, options?: RequestInit) {
   return res.json();
 }
 
+const statusConfig: Record<string, { label: string; icon: any; rowClass: string; badgeClass: string }> = {
+  APPROVED: { label: "Actif", icon: UserCheck, rowClass: "", badgeClass: "text-green-700 bg-green-50 border border-green-200" },
+  PENDING:  { label: "En attente", icon: Clock, rowClass: "bg-amber-50/60", badgeClass: "text-amber-700 bg-amber-50 border border-amber-200" },
+  REJECTED: { label: "Rejeté", icon: UserX, rowClass: "bg-red-50/40", badgeClass: "text-red-600 bg-red-50 border border-red-200" },
+};
+
 export default function Administration() {
   const { data: users, isLoading } = useListUsers();
   const { user: currentUser } = useAuth();
@@ -58,9 +64,8 @@ export default function Administration() {
   const [approveTarget, setApproveTarget] = useState<any>(null);
   const [rejectTarget, setRejectTarget] = useState<any>(null);
 
-  // Filter pending accounts from the full users list
-  const pendingUsers = (users as any[])?.filter((u: any) => u.status === "PENDING") || [];
-  const approvedUsers = (users as any[])?.filter((u: any) => u.status !== "PENDING") || [];
+  const allUsers = (users as any[]) || [];
+  const pendingCount = allUsers.filter((u: any) => u.status === "PENDING").length;
 
   if (currentUser?.role !== 'ADMIN') {
     return (
@@ -78,66 +83,35 @@ export default function Administration() {
     <AppLayout title="Administration">
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <p className="text-muted-foreground">Gérez les comptes utilisateurs et leurs permissions.</p>
+          <div>
+            <p className="text-muted-foreground">Gérez tous les comptes utilisateurs et leurs permissions.</p>
+            {pendingCount > 0 && (
+              <p className="text-sm text-amber-600 font-semibold mt-1 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                {pendingCount} compte{pendingCount > 1 ? 's' : ''} en attente d'approbation
+              </p>
+            )}
+          </div>
           <Button onClick={() => setIsCreateOpen(true)} className="bg-primary hover:bg-primary/90 text-white rounded-xl shadow-lg shadow-primary/20">
             <Plus className="w-4 h-4 mr-2" />
             Nouvel Utilisateur
           </Button>
         </div>
 
-        {/* Pending accounts section */}
-        {pendingUsers.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
-            <div className="px-6 py-4 bg-amber-100/60 border-b border-amber-200 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-amber-600" />
-              <h3 className="font-bold text-amber-900">Comptes en attente d'approbation</h3>
-              <Badge variant="destructive" className="ml-auto">{pendingUsers.length}</Badge>
-            </div>
-            <div className="divide-y divide-amber-200/60">
-              {pendingUsers.map((u: any) => (
-                <div key={u.id} className="px-6 py-4 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center text-sm font-bold text-amber-800 flex-shrink-0">
-                    {u.name?.substring(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground">{u.name}</p>
-                    <p className="text-sm text-muted-foreground">{u.email}</p>
-                    {u.phone && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <Phone className="w-3 h-3" />
-                        {u.phone}
-                      </p>
-                    )}
-                  </div>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${roleLabels[u.role]?.color || ''}`}>
-                    {roleLabels[u.role]?.label || u.role}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => setApproveTarget(u)} className="rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-sm">
-                      <CheckCircle2 className="w-4 h-4 mr-1" />
-                      Approuver
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setRejectTarget(u)} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50">
-                      <XCircle className="w-4 h-4 mr-1" />
-                      Rejeter
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Summary */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {Object.entries(roleLabels).map(([role, cfg]) => (
             <div key={role} className="bg-white rounded-2xl border border-border/50 p-4 shadow-sm">
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">{cfg.label}</p>
               <p className="text-3xl font-display font-bold text-foreground mt-1">
-                {approvedUsers?.filter((u: any) => u.role === role).length ?? 0}
+                {allUsers.filter((u: any) => u.role === role).length}
               </p>
             </div>
           ))}
+          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4 shadow-sm">
+            <p className="text-xs text-amber-700 uppercase tracking-wider font-semibold">En attente</p>
+            <p className="text-3xl font-display font-bold text-amber-800 mt-1">{pendingCount}</p>
+          </div>
         </div>
 
         {isLoading ? (
@@ -146,53 +120,115 @@ export default function Administration() {
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
+              <h3 className="font-bold text-foreground">Tous les comptes ({allUsers.length})</h3>
+              <p className="text-xs text-muted-foreground">L'administrateur a accès complet à tous les comptes</p>
+            </div>
             <table className="w-full text-sm text-left">
               <thead className="bg-muted/30 text-muted-foreground uppercase font-semibold text-xs border-b border-border/50">
                 <tr>
                   <th className="px-6 py-4">Utilisateur</th>
                   <th className="px-6 py-4">Email</th>
                   <th className="px-6 py-4">Rôle</th>
-                  <th className="px-6 py-4">Statut</th>
+                  <th className="px-6 py-4">Statut compte</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {approvedUsers?.map((u: any) => (
-                  <tr key={u.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                          {u.name?.substring(0, 2).toUpperCase()}
+                {allUsers.map((u: any) => {
+                  const status = u.status || "APPROVED";
+                  const statusCfg = statusConfig[status] || statusConfig.APPROVED;
+                  const StatusIcon = statusCfg.icon;
+                  return (
+                    <tr key={u.id} className={`hover:bg-muted/20 transition-colors ${statusCfg.rowClass}`}>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                            status === "PENDING" ? "bg-amber-200 text-amber-800" :
+                            status === "REJECTED" ? "bg-red-100 text-red-700" :
+                            "bg-primary/10 text-primary"
+                          }`}>
+                            {u.name?.substring(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-foreground">{u.name}</span>
+                            {u.phone && <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><Phone className="w-3 h-3" />{u.phone}</p>}
+                          </div>
                         </div>
-                        <span className="font-semibold text-foreground">{u.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-muted-foreground">{u.email}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${roleLabels[u.role]?.color || 'bg-gray-100 text-gray-700'}`}>
-                        {roleLabels[u.role]?.label || u.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${u.isActive ? 'text-green-600' : 'text-red-500'}`}>
-                        {u.isActive ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
-                        {u.isActive ? 'Actif' : 'Désactivé'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => setEditTarget(u)} className="w-8 h-8 text-muted-foreground hover:text-primary">
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        {u.id !== currentUser?.id && (
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(u)} className="w-8 h-8 text-muted-foreground hover:text-destructive">
-                            <Trash2 className="w-4 h-4" />
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">{u.email}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${roleLabels[u.role]?.color || 'bg-gray-100 text-gray-700'}`}>
+                          {roleLabels[u.role]?.label || u.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${statusCfg.badgeClass}`}>
+                          <StatusIcon className="w-3.5 h-3.5" />
+                          {statusCfg.label}
+                          {status === "REJECTED" && u.rejectionReason && (
+                            <span className="ml-1 opacity-75 truncate max-w-[100px]" title={u.rejectionReason}>— {u.rejectionReason}</span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Approve button: for PENDING and REJECTED accounts */}
+                          {(status === "PENDING" || status === "REJECTED") && (
+                            <Button
+                              size="sm"
+                              onClick={() => setApproveTarget(u)}
+                              className="rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-2.5 shadow-sm"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                              {status === "REJECTED" ? "Ré-approuver" : "Approuver"}
+                            </Button>
+                          )}
+                          {/* Reject button: for PENDING and APPROVED accounts */}
+                          {status === "PENDING" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setRejectTarget(u)}
+                              className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 text-xs h-7 px-2.5"
+                            >
+                              <XCircle className="w-3.5 h-3.5 mr-1" />
+                              Rejeter
+                            </Button>
+                          )}
+                          {/* Edit: for all non-pending accounts */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditTarget(u)}
+                            className="w-7 h-7 text-muted-foreground hover:text-primary"
+                            title="Modifier"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
                           </Button>
-                        )}
-                      </div>
+                          {u.id !== currentUser?.id && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeleteTarget(u)}
+                              className="w-7 h-7 text-muted-foreground hover:text-destructive"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {allUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
+                      Aucun compte trouvé
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
