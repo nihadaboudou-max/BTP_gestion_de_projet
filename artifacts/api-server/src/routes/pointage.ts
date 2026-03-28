@@ -81,23 +81,44 @@ async function formatSheetWithEntries(sheet: typeof pointageSheetsTable.$inferSe
 
 // ─── routes ───────────────────────────────────────────────────────────────────
 
-// GET /api/pointage/workers-for-project/:projectId — list all personnel assigned to a project
+// GET /api/pointage/workers-for-project/:projectId — list all active personnel
+// Returns personnel assigned to the project, or ALL active personnel as fallback
 router.get("/workers-for-project/:projectId", authenticate, async (req: AuthRequest, res) => {
   try {
     const projectId = parseInt(req.params.projectId);
-    const workers = await db
+
+    // First try to get personnel assigned to this project
+    const assigned = await db
       .select({
         id: personnelTable.id,
         name: personnelTable.name,
         trade: personnelTable.trade,
         dailyWage: personnelTable.dailyWage,
         isActive: personnelTable.isActive,
+        assignedToProject: sql<boolean>`true`,
       })
       .from(personnelProjectsTable)
       .innerJoin(personnelTable, eq(personnelTable.id, personnelProjectsTable.personnelId))
       .where(and(eq(personnelProjectsTable.projectId, projectId), eq(personnelTable.isActive, true)));
 
-    res.json(workers);
+    if (assigned.length > 0) {
+      return res.json(assigned);
+    }
+
+    // Fallback: return ALL active personnel with a flag so frontend can show them
+    const allPersonnel = await db
+      .select({
+        id: personnelTable.id,
+        name: personnelTable.name,
+        trade: personnelTable.trade,
+        dailyWage: personnelTable.dailyWage,
+        isActive: personnelTable.isActive,
+        assignedToProject: sql<boolean>`false`,
+      })
+      .from(personnelTable)
+      .where(eq(personnelTable.isActive, true));
+
+    res.json(allPersonnel);
   } catch (err) {
     req.log.error({ err }, "Get workers for project error");
     res.status(500).json({ error: "Erreur serveur" });

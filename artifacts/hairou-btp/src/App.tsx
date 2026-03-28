@@ -13,6 +13,7 @@ import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import Tasks from "@/pages/tasks";
 import Pointage from "@/pages/pointage";
+import PointageNew from "@/pages/pointage-new";
 import PointageDetail from "@/pages/pointage-detail";
 import Expenses from "@/pages/expenses";
 import Personnel from "@/pages/personnel";
@@ -63,6 +64,10 @@ function Router() {
       
       <Route path="/pointage">
         {() => <ProtectedRoute component={Pointage} />}
+      </Route>
+
+      <Route path="/pointage/new">
+        {() => <ProtectedRoute component={PointageNew} />}
       </Route>
       
       <Route path="/pointage/:id">

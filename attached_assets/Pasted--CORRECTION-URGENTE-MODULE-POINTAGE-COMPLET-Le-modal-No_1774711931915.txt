@@ -1,0 +1,276 @@
+## CORRECTION URGENTE — MODULE POINTAGE COMPLET
+
+Le modal "Nouvelle Feuille de Pointage" affiche "Aucun ouvrier assigné 
+à ce chantier" et ne permet pas de saisir les heures ni les signatures.
+TOUT est à reconstruire. Voici l'implémentation exacte attendue:
+
+---
+
+## PROBLÈME 1 — OUVRIERS NON CHARGÉS
+
+Quand le chef sélectionne un projet dans le dropdown:
+1. Faire un appel API: GET /api/projects/:projectId/workers
+2. Si aucun ouvrier n'est lié au projet → afficher bouton 
+   "Assigner des ouvriers à ce projet" qui ouvre le module Personnel
+3. Si des ouvriers existent en base mais ne sont pas assignés 
+   au projet → les afficher quand même avec case à cocher 
+   "Inclure dans cette fiche"
+4. NE JAMAIS bloquer la création de fiche à cause des ouvriers
+
+CORRECTION DB: Vérifier que la table project_workers (ou workers) 
+existe et contient bien les foreign keys:
+  project_id → projects(id)
+  worker_id  → users(id) ou personnel(id)
+
+Si la table n'existe pas → la créer et la peupler avec les données 
+existantes du personnel.
+
+---
+
+## PROBLÈME 2 — FORMULAIRE INCOMPLET
+
+Après sélection projet + date, afficher pour CHAQUE ouvrier 
+une carte complète avec ces champs OBLIGATOIRES:
+
+### CARTE OUVRIER (composant réutilisable WorkerPointageCard)
+
+[👷 NOM OUVRIER — MÉTIER]
+
+STATUT DE PRÉSENCE:
+  Radio buttons: ● Présent  ○ Demi-journée  ○ Absent
+
+  [Si Absent → griser les champs ci-dessous, montant = 0 FCFA]
+  [Si Présent ou Demi-journée → afficher tout ce qui suit]
+
+SECTION ARRIVÉE:
+  Heure d'arrivée: input type="time" defaultValue="07:30"
+  
+  Signature arrivée:
+  <canvas id="sig-arrival-{workerId}" width="300" height="100"
+    style="border: 1px solid #ccc; border-radius: 8px; 
+           touch-action: none; cursor: crosshair">
+  </canvas>
+  Boutons: [🗑 Effacer] [✅ Valider signature arrivée]
+  État: "⏳ En attente" → "✔ Signé à HH:MM" après validation
+
+SECTION DÉPART:
+  Heure de départ: input type="time" defaultValue="17:00"
+  
+  Signature départ:
+  <canvas id="sig-departure-{workerId}" width="300" height="100"
+    style="border: 1px solid #ccc; border-radius: 8px;
+           touch-action: none; cursor: crosshair">
+  </canvas>
+  Boutons: [🗑 Effacer] [✅ Valider signature départ]
+  État: "⏳ En attente" → "✔ Signé à HH:MM" après validation
+
+CALCUL AUTOMATIQUE (mis à jour live):
+  Heures travaillées: {departureTime - arrivalTime} → ex: "9h30"
+  [Si heures > 8] → badge bleu "⏱ Heures sup: Xh"
+  [Si arrivée > 08:00] → badge orange "⚠ Retard: Xmin"
+  [Si heures < 4 et statut=Présent] → suggestion "Passer en demi-journée?"
+
+MODE DE PAIE:
+  Radio: ● Par jour  ○ Par tâche
+
+  [Si Par jour]
+    Tarif journalier: input number placeholder="10000" suffix="FCFA"
+    Calcul:
+      Présent      → tarif × 1.0
+      Demi-journée → tarif × 0.5
+      Absent       → 0
+
+  [Si Par tâche]
+    Tâche: select → GET /api/projects/:id/tasks
+    Montant négocié: input number suffix="FCFA"
+    Avancement: input range 0-100% avec affichage pourcentage
+    Montant dû = montant × (avancement/100)
+
+  💰 MONTANT DÛ: [XXXX FCFA] ← recalculé à chaque changement
+
+Notes: textarea rows=2 placeholder="Observations..."
+
+---
+
+## TABLEAU RÉCAPITULATIF (sous toutes les cartes)
+
+Mettre à jour en temps réel:
+┌────────────────┬───────┬───────┬───────┬──────────┬──────────┐
+│ Ouvrier        │ Arr.  │ Dép.  │Heures │ Statut   │ Montant  │
+├────────────────┼───────┼───────┼───────┼──────────┼──────────┤
+│ [Nom]          │ 07:30 │ 17:00 │ 9h30  │ Présent  │ X FCFA   │
+│ [Nom]          │  --   │  --   │  --   │ Absent   │ 0 FCFA   │
+├────────────────┴───────┴───────┴───────┴──────────┼──────────┤
+│                                    TOTAL JOURNÉE: │ X FCFA   │
+└──────────────────────────────────────────────────────────────┘
+
+---
+
+## SIGNATURE CHEF (validation finale)
+
+Titre: "Signature du Chef de Chantier — Validation de la fiche"
+<canvas id="chef-signature" width="400" height="120"
+  style="border: 2px solid #011638; border-radius: 8px">
+</canvas>
+[🗑 Effacer] [✅ Signer et soumettre la fiche]
+
+Bouton SOUMETTRE:
+- Désactivé si: signature chef manquante
+- Au clic → POST /api/pointage/sheets avec:
+  {
+    projectId, date, createdBy,
+    chefSignature: canvas.toDataURL('image/png'),
+    entries: [
+      {
+        workerId,
+        status: 'PRESENT'|'ABSENT'|'DEMI_JOURNEE',
+        arrivalTime: 'HH:MM',
+        arrivalSignature: canvas.toDataURL('image/png'),
+        arrivalSignedAt: ISO timestamp,
+        departureTime: 'HH:MM',
+        departureSignature: canvas.toDataURL('image/png'),
+        departureSignedAt: ISO timestamp,
+        hoursWorked: number,
+        payMode: 'PAR_JOUR'|'PAR_TACHE',
+        dailyRate: number,
+        taskId: number|null,
+        taskAmount: number|null,
+        taskProgressPct: number,
+        amountDue: number,
+        notes: string
+      }
+    ],
+    totalAmountDue: number
+  }
+
+---
+
+## IMPLÉMENTATION SIGNATURE CANVAS
+
+Installer: npm install signature_pad
+
+Utiliser dans React:
+  import SignaturePad from 'signature_pad';
+
+  useEffect(() => {
+    const canvas = document.getElementById(`sig-arrival-${workerId}`);
+    const pad = new SignaturePad(canvas, {
+      backgroundColor: 'rgb(255,255,255)',
+      penColor: 'rgb(0,0,0)',
+      minWidth: 1,
+      maxWidth: 2.5
+    });
+    // Stocker pad dans ref: sigPads.current[workerId] = pad
+  }, []);
+
+  // Effacer:
+  sigPads.current[workerId].clear();
+
+  // Récupérer image:
+  const imgBase64 = sigPads.current[workerId].toDataURL('image/png');
+
+  // Vérifier si signé:
+  const isSigned = !sigPads.current[workerId].isEmpty();
+
+IMPORTANT: Sur mobile, ajouter sur le canvas:
+  onTouchStart={e => e.preventDefault()}
+  style={{ touchAction: 'none' }}
+
+---
+
+## CE QUE VOIT L'OUVRIER (vue lecture seule)
+
+Route: GET /api/pointage/worker/:workerId
+Afficher dans l'onglet "Mon Pointage":
+
+MON HISTORIQUE DE POINTAGE
+Mois: [Juin 2025 ▼]
+Résumé: Jours présents: 18 | Absences: 2 | Salaire dû: 180 000 FCFA
+
+Tableau:
+Date | Projet | Arrivée | Départ | Heures | Statut | Montant | Action
+14/06 | Villa | 07:30 | 17:00 | 9h30 | Présent | 10 000 | [⚠ Réclamer]
+13/06 | Villa | 08:00 | 12:00 | 4h00 | Demi-j. | 5 000  | [⚠ Réclamer]
+
+Clic sur une ligne → voir les signatures en miniature
+Clic [⚠ Réclamer] → modal réclamation:
+  Type: select [Erreur salaire | Erreur présence | Autre]
+  Description: textarea max 500 chars
+  [Envoyer la réclamation]
+  → POST /api/reclamations
+  → Notification temps réel vers Admin + Chef du projet
+
+---
+
+## CORRECTIONS BASE DE DONNÉES
+
+Vérifier et créer si manquant:
+
+CREATE TABLE IF NOT EXISTS pointage_sheets (
+  id               SERIAL PRIMARY KEY,
+  project_id       INTEGER REFERENCES projects(id) NOT NULL,
+  date             DATE NOT NULL,
+  created_by       INTEGER REFERENCES users(id) NOT NULL,
+  chef_signature   TEXT,
+  chef_signed_at   TIMESTAMP,
+  status           VARCHAR(20) DEFAULT 'BROUILLON',
+  total_amount_due INTEGER DEFAULT 0,
+  admin_comment    TEXT,
+  locked           BOOLEAN DEFAULT false,
+  created_at       TIMESTAMP DEFAULT NOW(),
+  UNIQUE(project_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS pointage_entries (
+  id                   SERIAL PRIMARY KEY,
+  sheet_id             INTEGER REFERENCES pointage_sheets(id) ON DELETE CASCADE,
+  worker_id            INTEGER NOT NULL,
+  status               VARCHAR(20) DEFAULT 'PRESENT',
+  arrival_time         TIME,
+  arrival_signature    TEXT,
+  arrival_signed_at    TIMESTAMP,
+  departure_time       TIME,
+  departure_signature  TEXT,
+  departure_signed_at  TIMESTAMP,
+  hours_worked         DECIMAL(4,2),
+  overtime_hours       DECIMAL(3,2) DEFAULT 0,
+  pay_mode             VARCHAR(10) DEFAULT 'PAR_JOUR',
+  daily_rate           INTEGER,
+  task_id              INTEGER REFERENCES tasks(id),
+  task_amount          INTEGER,
+  task_progress_pct    INTEGER DEFAULT 100,
+  amount_due           INTEGER DEFAULT 0,
+  notes                TEXT,
+  created_at           TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS project_workers (
+  project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+  worker_id  INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMP DEFAULT NOW(),
+  assigned_by INTEGER REFERENCES users(id),
+  PRIMARY KEY (project_id, worker_id)
+);
+
+-- Lier le personnel existant aux projets:
+INSERT INTO project_workers (project_id, worker_id, assigned_by)
+SELECT p.id, u.id, 1
+FROM projects p, users u
+WHERE u.role = 'OUVRIER'
+ON CONFLICT DO NOTHING;
+
+---
+
+## RÈGLES FINALES CRITIQUES
+
+1. NE PAS bloquer si ouvrier sans signature → juste avertir
+2. Calcul heures = TOUJOURS en temps réel dès que arrivée/départ changent
+3. Montant dû = TOUJOURS recalculé live
+4. Canvas signature DOIT fonctionner sur mobile (touch events)
+5. Après soumission → Socket.io emit('new_pointage_sheet', {sheetData})
+   → Admin reçoit notification avec total FCFA
+   → Ouvriers concernés voient leur historique mis à jour
+6. ZERO erreur console — try/catch sur chaque appel API
+7. Si projet n'a pas d'ouvriers assignés → afficher liste de TOUT
+   le personnel avec checkboxes pour les assigner à la volée
+   avant de créer la fiche

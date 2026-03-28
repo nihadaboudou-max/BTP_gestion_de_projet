@@ -11,8 +11,9 @@ HAIROU - Gestion BTP: A full-stack construction management platform. Built with 
 - `/dashboard` — Admin/Chef: Stats, activity log, chart. Ouvrier: simplified view with presence confirmation card, tasks, notifications
 - `/projets` — Projects grid with create form
 - `/taches` — Kanban board (by priority)
-- `/pointage` — Daily attendance sheets with signature & approval
-- `/pointage/:id` — Detail view with expandable entries: arrival/departure times, pay mode (PAR_JOUR/PAR_TACHE), hours, overtime, amount due, chef signature, reclamations modal per entry
+- `/pointage` — Chef/Admin: list of attendance sheets with "Nouveau Pointage" button. Ouvrier: read-only monthly history table (month/year filter) with summary stats and per-entry "Réclamer" modal
+- `/pointage/new` — Full pointage creation form: Step 1 project+date; Step 2 worker cards (Présent/Demi-j./Absent toggles, arrival/departure times, per-worker signature canvases, PAR_JOUR/PAR_TACHE pay mode, live amount calc, overtime/late alerts); Step 3 summary table with totals; Step 4 chef signature canvas; sticky submit bar
+- `/pointage/:id` — Detail view with expandable entries: arrival/departure times, pay mode (PAR_JOUR/PAR_TACHE), hours, overtime, amount due, chef signature, reclamations modal per entry; PDF export button
 - `/depenses` — Expenses table; ADMIN sees Valider button → approve/reject modal
 - `/personnel` — Worker cards with add/edit
 - `/messages` — Two-pane inbox; send to any user

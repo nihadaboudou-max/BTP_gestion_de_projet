@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { projectsTable, usersTable, activityLogsTable, expensesTable } from "@workspace/db";
+import { projectsTable, usersTable, activityLogsTable, expensesTable, tasksTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { notifyAdmins, broadcastRefresh } from "../lib/notifications.js";
@@ -196,6 +196,21 @@ router.delete("/:id", authenticate, async (req: AuthRequest, res) => {
   } catch (err) {
     req.log.error({ err }, "Delete project error");
     res.status(500).json({ error: "Erreur serveur", message: "Erreur lors de la suppression du projet" });
+  }
+});
+
+// GET /:id/tasks — list tasks for a project (for PAR_TACHE pay mode)
+router.get("/:id/tasks", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const tasks = await db
+      .select({ id: tasksTable.id, title: tasksTable.title, status: tasksTable.status })
+      .from(tasksTable)
+      .where(eq(tasksTable.projectId, id));
+    res.json(tasks);
+  } catch (err) {
+    req.log.error({ err }, "Get project tasks error");
+    res.status(500).json({ error: "Erreur serveur" });
   }
 });
 
