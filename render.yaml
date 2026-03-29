@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: btp-gestion
+    env: node
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run build
+    startCommand: pnpm run start
