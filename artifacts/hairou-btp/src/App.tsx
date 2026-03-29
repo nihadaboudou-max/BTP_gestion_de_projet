@@ -20,8 +20,6 @@ import Messages from "@/pages/messages";
 import Notifications from "@/pages/notifications";
 import Administration from "@/pages/administration";
 
-// NOTE: setAuthTokenGetter est appelé dans main.tsx — ne pas le dupliquer ici
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
