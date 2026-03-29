@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import NotFound from "@/pages/not-found";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 // Page Imports
 import Login from "@/pages/login";
@@ -21,8 +20,7 @@ import Messages from "@/pages/messages";
 import Notifications from "@/pages/notifications";
 import Administration from "@/pages/administration";
 
-// Register JWT token getter
-setAuthTokenGetter(() => localStorage.getItem('hairou_token'));
+// NOTE: setAuthTokenGetter est appelé dans main.tsx — ne pas le dupliquer ici
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,7 +35,11 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
   
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-background text-primary">Chargement...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-primary">
+        Chargement...
+      </div>
+    );
   }
   
   if (!isAuthenticated) {
@@ -107,7 +109,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, "") ?? ""}>
           <AuthProvider>
             <Router />
           </AuthProvider>
