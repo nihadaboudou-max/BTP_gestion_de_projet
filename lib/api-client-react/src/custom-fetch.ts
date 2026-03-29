@@ -58,12 +58,11 @@ function isUrl(input: RequestInfo | URL): input is URL {
 }
 
 function applyBaseUrl(input: RequestInfo | URL): RequestInfo | URL {
-  if (!_baseUrl) return input;
+  const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+  const base = _baseUrl || BACKEND;
   const url = resolveUrl(input);
-  // Only prepend to relative paths (starting with /)
   if (!url.startsWith("/")) return input;
-
-  const absolute = `${_baseUrl}${url}`;
+  const absolute = `${base}${url}`;
   if (typeof input === "string") return absolute;
   if (isUrl(input)) return new URL(absolute);
   return new Request(absolute, input as Request);
