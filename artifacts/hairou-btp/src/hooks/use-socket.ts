@@ -12,8 +12,9 @@ export function useSocket() {
 
   useEffect(() => {
     if (!user) return;
-
-    const socketUrl = import.meta.env.VITE_API_URL ?? "";
+    
+    const socketUrl = import.meta.env.VITE_API_URL 
+      || "https://btp-gestion-de-projet.onrender.com";
 
     if (!sharedSocket || !sharedSocket.connected) {
       sharedSocket = io(socketUrl, {
