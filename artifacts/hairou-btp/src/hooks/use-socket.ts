@@ -14,7 +14,7 @@ export function useSocket() {
     if (!user) return;
 
     if (!sharedSocket || !sharedSocket.connected) {
-      sharedSocket = io({
+      sharedSocket = io(import.meta.env.VITE_API_URL ?? "", {
         path: "/api/socket.io",
         transports: ["websocket", "polling"],
       });
