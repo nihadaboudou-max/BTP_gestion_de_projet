@@ -3,11 +3,10 @@ import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 import App from "./App";
 import "./index.css";
 
-// Configure l'URL du backend (définie dans VITE_API_URL sur Render)
-const apiUrl = import.meta.env.VITE_API_URL ?? "";
-setBaseUrl(apiUrl || null);
+const apiUrl = import.meta.env.VITE_API_URL 
+  || "https://btp-gestion-de-projet.onrender.com";
 
-// Auth token getter global
+setBaseUrl(apiUrl);
 setAuthTokenGetter(() => localStorage.getItem("hairou_token"));
 
 createRoot(document.getElementById("root")!).render(<App />);
