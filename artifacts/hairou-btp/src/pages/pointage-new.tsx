@@ -22,7 +22,8 @@ import { useAuth } from "@/hooks/use-auth";
 
 function apiFetch(path: string, opts?: RequestInit) {
   const token = localStorage.getItem("hairou_token");
-  return fetch(path, {
+  const baseUrl = import.meta.env.VITE_API_URL ?? "";
+  return fetch(`${baseUrl}${path}`, {
     ...opts,
     headers: {
       "Content-Type": "application/json",
