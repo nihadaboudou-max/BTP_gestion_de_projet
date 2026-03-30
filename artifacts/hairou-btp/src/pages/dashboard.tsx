@@ -169,7 +169,8 @@ function WorkerDashboard() {
     setIsSavingPresence(true);
     try {
       const token = localStorage.getItem("hairou_token");
-      const res = await fetch("/api/presence-confirmations", {
+      const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+      const res = await fetch(`${BACKEND}/api/presence-confirmations`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ date: tomorrowStr, status }),
