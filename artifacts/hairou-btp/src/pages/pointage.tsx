@@ -20,7 +20,9 @@ import { useAuth } from "@/hooks/use-auth";
 
 function apiFetch(path: string, opts?: RequestInit) {
   const token = localStorage.getItem("hairou_token");
-  return fetch(path, {
+  const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+  const fullUrl = path.startsWith("http") ? path : `${BACKEND}${path}`;
+  return fetch(fullUrl, {
     ...opts,
     headers: {
       "Content-Type": "application/json",
