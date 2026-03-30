@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { AppLayout } from "@/components/layout";
 import { 
   useGetPointageSheet, 
@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  CheckCircle, XCircle, PenTool, Loader2, Save, FileSignature, 
+  CheckCircle, XCircle, PenTool, Loader2, Save, FileSignature, ArrowLeft, 
   Clock, DollarSign, AlertTriangle, MessageSquare, ChevronDown, ChevronUp,
   User, Hammer, Lock, FileDown
 } from "lucide-react";
@@ -103,6 +103,7 @@ async function apiFetch(path: string, options?: RequestInit) {
 export default function PointageDetail() {
   const [, params] = useRoute("/pointage/:id");
   const id = parseInt(params?.id || "0");
+  const [, navigate] = useLocation();
   const { user } = useAuth();
   
   const { data: sheet, isLoading } = useGetPointageSheet(id, { query: { enabled: !!id } });
@@ -343,6 +344,12 @@ export default function PointageDetail() {
   return (
     <AppLayout title={`Pointage — ${formatDate(sheet.date)}`}>
       <div className="space-y-6">
+
+        {/* Back button */}
+        <Button variant="ghost" onClick={() => navigate("/pointage")} className="text-muted-foreground -ml-2 w-fit">
+          <ArrowLeft className="w-4 h-4 mr-1.5" />
+          Retour aux fiches
+        </Button>
 
         {/* Header card */}
         <div className="bg-white rounded-2xl border border-border/50 shadow-sm p-6">
@@ -809,8 +816,8 @@ function ReclamationModal({ entry, sheetId, onClose }: { entry: any; sheetId: nu
     setIsLoading(true);
     try {
       const token = localStorage.getItem("hairou_token");
-      const baseUrl = import.meta.env.VITE_API_URL ?? "";
-      const res = await fetch(`${baseUrl}/api/reclamations`, {
+      const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+      const res = await fetch(`${BACKEND}/api/reclamations`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ sheetId, type, description }),
