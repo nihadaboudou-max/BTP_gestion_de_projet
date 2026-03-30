@@ -22,7 +22,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 function apiFetch(path: string, opts?: RequestInit) {
   const token = localStorage.getItem("hairou_token");
-  const baseUrl = import.meta.env.VITE_API_URL ?? "";
+  const baseUrl = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
   return fetch(`${baseUrl}${path}`, {
     ...opts,
     headers: {
