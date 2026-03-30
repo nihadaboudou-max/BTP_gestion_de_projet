@@ -46,11 +46,16 @@ export default function Tasks() {
 
   const canCreate = user?.role === "ADMIN" || user?.role === "CHEF_CHANTIER";
 
+  // Ouvriers voient seulement leurs tâches assignées
+  const visibleTasks = user?.role === "OUVRIER"
+    ? (tasks?.filter(t => t.assignedToId === user.id) ?? [])
+    : (tasks ?? []);
+
   const grouped = {
-    A_FAIRE:  tasks?.filter(t => t.status === "A_FAIRE") ?? [],
-    EN_COURS: tasks?.filter(t => t.status === "EN_COURS") ?? [],
-    BLOQUEE:  tasks?.filter(t => t.status === "BLOQUEE") ?? [],
-    TERMINEE: tasks?.filter(t => t.status === "TERMINEE") ?? [],
+    A_FAIRE:  visibleTasks.filter(t => t.status === "A_FAIRE"),
+    EN_COURS: visibleTasks.filter(t => t.status === "EN_COURS"),
+    BLOQUEE:  visibleTasks.filter(t => t.status === "BLOQUEE"),
+    TERMINEE: visibleTasks.filter(t => t.status === "TERMINEE"),
   };
 
   return (
