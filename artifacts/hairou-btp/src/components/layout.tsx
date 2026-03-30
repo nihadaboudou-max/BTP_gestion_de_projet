@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   Shield,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -50,6 +51,7 @@ export function AppLayout({ children, title }: LayoutProps) {
     { href: "/personnel", label: "Personnel", icon: Users },
     { href: "/depenses", label: "Dépenses", icon: Receipt },
     { href: "/messages", label: "Messages", icon: MessageSquare },
+    { href: "/finance", label: "Finance", icon: TrendingUp },
     { href: "/administration", label: "Administration", icon: Shield, badge: true },
   ];
 
@@ -61,6 +63,7 @@ export function AppLayout({ children, title }: LayoutProps) {
     { href: "/personnel", label: "Personnel", icon: Users },
     { href: "/depenses", label: "Dépenses", icon: Receipt },
     { href: "/messages", label: "Messages", icon: MessageSquare },
+    { href: "/finance", label: "Finance", icon: TrendingUp },
   ];
 
   const ouvrierNav = [
