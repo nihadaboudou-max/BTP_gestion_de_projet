@@ -159,7 +159,8 @@ function TaskCard({ task, currentUserId, currentUserRole }: { task: any; current
     setConfirming(true);
     try {
       const token = localStorage.getItem('hairou_token');
-      const res = await fetch(`/api/tasks/${task.id}/confirm`, {
+      const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+      const res = await fetch(`${BACKEND}/api/tasks/${task.id}/confirm`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
