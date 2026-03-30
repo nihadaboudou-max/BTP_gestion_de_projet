@@ -19,6 +19,7 @@ import Personnel from "@/pages/personnel";
 import Messages from "@/pages/messages";
 import Notifications from "@/pages/notifications";
 import Administration from "@/pages/administration";
+import Finance from "@/pages/finance";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -96,6 +97,10 @@ function Router() {
 
       <Route path="/administration">
         {() => <ProtectedRoute component={Administration} />}
+      </Route>
+
+      <Route path="/finance">
+        {() => <ProtectedRoute component={Finance} />}
       </Route>
 
       <Route component={NotFound} />
