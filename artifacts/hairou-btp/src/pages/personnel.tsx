@@ -91,7 +91,7 @@ export default function Personnel() {
                     </div>
                     <div>
                       <h4 className="font-bold text-foreground">{p.name}</h4>
-                      <p className="text-xs text-muted-foreground">{p.speciality}</p>
+                      <p className="text-xs text-muted-foreground">{p.trade}</p>
                     </div>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${p.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
@@ -143,20 +143,20 @@ function CreatePersonnelForm({ onSuccess }: { onSuccess: () => void }) {
   const [form, setForm] = useState({
     name: "",
     phone: "",
-    speciality: "",
+    trade: "",
     contractType: "JOURNALIER" as CreatePersonnelRequestContractType,
     dailyWage: "",
-    nationalId: "",
+    idNumber: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.speciality) return;
+    if (!form.name || !form.trade) return;
     createMutation.mutate({
       data: {
         ...form,
         dailyWage: form.dailyWage ? Number(form.dailyWage) : undefined,
-        nationalId: form.nationalId || undefined,
+        idNumber: form.idNumber || undefined,
         phone: form.phone || undefined,
       }
     });
@@ -175,12 +175,12 @@ function CreatePersonnelForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
         <div className="space-y-2">
           <Label>Numéro CNI</Label>
-          <Input value={form.nationalId} onChange={e => setForm({ ...form, nationalId: e.target.value })} placeholder="Optionnel" className="rounded-xl" />
+          <Input value={form.idNumber} onChange={e => setForm({ ...form, idNumber: e.target.value })} placeholder="Optionnel" className="rounded-xl" />
         </div>
       </div>
       <div className="space-y-2">
         <Label>Spécialité *</Label>
-        <Select value={form.speciality} onValueChange={v => setForm({ ...form, speciality: v })}>
+        <Select value={form.trade} onValueChange={v => setForm({ ...form, trade: v })}>
           <SelectTrigger className="rounded-xl"><SelectValue placeholder="Sélectionner la spécialité" /></SelectTrigger>
           <SelectContent>{specialityOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
         </Select>
@@ -200,7 +200,7 @@ function CreatePersonnelForm({ onSuccess }: { onSuccess: () => void }) {
       </div>
       <div className="pt-4 flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onSuccess} className="rounded-xl">Annuler</Button>
-        <Button type="submit" disabled={createMutation.isPending || !form.name || !form.speciality} className="rounded-xl bg-secondary hover:bg-secondary/90 text-white">
+        <Button type="submit" disabled={createMutation.isPending || !form.name || !form.trade} className="rounded-xl bg-secondary hover:bg-secondary/90 text-white">
           {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           Ajouter
         </Button>
