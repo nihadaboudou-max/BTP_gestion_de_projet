@@ -13,8 +13,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 
 async function apiFetch(path: string, options?: RequestInit) {
+  const BACKEND = "https://btp-gestion-de-projet.onrender.com";
   const token = localStorage.getItem("hairou_token");
-  const res = await fetch(path, {
+  const fullUrl = path.startsWith("http") ? path : `${BACKEND}${path}`;
+  const res = await fetch(fullUrl, {
     ...options,
     headers: {
       "Content-Type": "application/json",
