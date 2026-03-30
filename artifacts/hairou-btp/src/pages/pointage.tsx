@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { AppLayout } from "@/components/layout";
 import { useListPointageSheets } from "@workspace/api-client-react";
 import { formatDate, formatFCFA } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Plus, ClipboardList, Clock, ArrowRight, Eye,
-  Calendar, CheckCircle2, XCircle, MinusCircle, AlertTriangle
+  Calendar, CheckCircle2, XCircle, MinusCircle, AlertTriangle, ArrowLeft
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -141,6 +140,7 @@ function WorkerHistory() {
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [claimEntry, setClaimEntry] = useState<any>(null);
+  const [, navigate] = useLocation();
 
   const { data: history, isLoading } = useQuery({
     queryKey: ["/api/pointage/my-history"],
@@ -179,6 +179,12 @@ function WorkerHistory() {
   return (
     <AppLayout title="Mon Historique de Pointage">
       <div className="space-y-6">
+
+        {/* Back button */}
+        <Button variant="ghost" onClick={() => navigate("/")} className="text-muted-foreground -ml-2 w-fit">
+          <ArrowLeft className="w-4 h-4 mr-1.5" />
+          Retour au tableau de bord
+        </Button>
 
         {/* Month filter */}
         <div className="flex flex-wrap items-center gap-3">
