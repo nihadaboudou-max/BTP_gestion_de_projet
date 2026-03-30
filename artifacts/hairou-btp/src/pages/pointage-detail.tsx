@@ -809,7 +809,8 @@ function ReclamationModal({ entry, sheetId, onClose }: { entry: any; sheetId: nu
     setIsLoading(true);
     try {
       const token = localStorage.getItem("hairou_token");
-      const res = await fetch("/api/reclamations", {
+      const baseUrl = import.meta.env.VITE_API_URL ?? "";
+      const res = await fetch(`${baseUrl}/api/reclamations`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ sheetId, type, description }),
