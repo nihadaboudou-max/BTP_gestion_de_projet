@@ -31,7 +31,7 @@ const PERMISSIONS = [
 ];
 
 async function apiFetch(path: string, options?: RequestInit) {
-  const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+  const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
   const token = localStorage.getItem("hairou_token");
   const fullUrl = path.startsWith("http") ? path : `${BACKEND}${path}`;
   const res = await fetch(fullUrl, {

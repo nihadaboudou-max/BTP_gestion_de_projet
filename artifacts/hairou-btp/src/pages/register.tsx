@@ -34,7 +34,7 @@ export default function Register() {
 
     setIsLoading(true);
     try {
-      const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+      const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
       const res = await fetch(`${BACKEND}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

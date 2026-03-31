@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 
-const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
 
 async function apiFetch(path: string, options?: RequestInit) {
   const token = localStorage.getItem("hairou_token");

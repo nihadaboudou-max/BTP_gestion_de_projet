@@ -80,7 +80,7 @@ const SHEET_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 async function apiFetch(path: string, options?: RequestInit) {
-  const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+  const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
   const token = localStorage.getItem("hairou_token");
   const fullUrl = path.startsWith("http") ? path : `${BACKEND}${path}`;
   const res = await fetch(fullUrl, {
@@ -816,7 +816,7 @@ function ReclamationModal({ entry, sheetId, onClose }: { entry: any; sheetId: nu
     setIsLoading(true);
     try {
       const token = localStorage.getItem("hairou_token");
-      const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+      const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
       const res = await fetch(`${BACKEND}/api/reclamations`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
