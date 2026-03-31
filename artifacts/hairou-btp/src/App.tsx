@@ -20,6 +20,7 @@ import Messages from "@/pages/messages";
 import Notifications from "@/pages/notifications";
 import Administration from "@/pages/administration";
 import Finance from "@/pages/finance";
+import ProjectDetail from "@/pages/project-detail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,6 +62,10 @@ function Router() {
       
       <Route path="/projets">
         {() => <ProtectedRoute component={Projects} />}
+      </Route>
+
+      <Route path="/projets/:id">
+        {() => <ProtectedRoute component={ProjectDetail} />}
       </Route>
       
       <Route path="/pointage">
