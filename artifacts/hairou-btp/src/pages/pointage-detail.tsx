@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { AppLayout } from "@/components/layout";
 import { 
   useGetPointageSheet, 
@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  CheckCircle, XCircle, PenTool, Loader2, Save, FileSignature, ArrowLeft, 
+  CheckCircle, XCircle, PenTool, Loader2, Save, FileSignature, 
   Clock, DollarSign, AlertTriangle, MessageSquare, ChevronDown, ChevronUp,
   User, Hammer, Lock, FileDown
 } from "lucide-react";
@@ -27,6 +27,8 @@ import SignatureCanvas from "react-signature-canvas";
 import { useAuth } from "@/hooks/use-auth";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
 
 function calcHours(arrival: string, departure: string): number | null {
   if (!arrival || !departure) return null;
@@ -80,7 +82,6 @@ const SHEET_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 async function apiFetch(path: string, options?: RequestInit) {
-  const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
   const token = localStorage.getItem("hairou_token");
   const fullUrl = path.startsWith("http") ? path : `${BACKEND}${path}`;
   const res = await fetch(fullUrl, {
@@ -101,9 +102,11 @@ async function apiFetch(path: string, options?: RequestInit) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PointageDetail() {
-  const [, params] = useRoute("/pointage/:id");
-  const id = parseInt(params?.id || "0");
-  const [, navigate] = useLocation();
+  // Extraction robuste de l'ID depuis l'URL (compatible avec ProtectedRoute wrapper)
+  const pathId = typeof window !== "undefined"
+    ? window.location.pathname.split("/").filter(Boolean).pop()
+    : "0";
+  const id = parseInt(pathId || "0");
   const { user } = useAuth();
   
   const { data: sheet, isLoading } = useGetPointageSheet(id, { query: { enabled: !!id } });
@@ -123,20 +126,21 @@ export default function PointageDetail() {
   const sigPad = useRef<any>(null);
   const chefSigPad = useRef<any>(null);
 
-  // Resize signature canvas to its actual display size when dialogs open
-  // This fixes drawing offset issues when canvas buffer ≠ CSS display size
   useEffect(() => {
     if (!isSignModalOpen) return;
     const t = setTimeout(() => {
       if (sigPad.current) {
         const canvas = sigPad.current.getCanvas();
-        const w = canvas.offsetWidth || 440;
-        const h = canvas.offsetHeight || 180;
-        canvas.width = w;
-        canvas.height = h;
+        const w = canvas.offsetWidth || canvas.clientWidth || 440;
+        const h = canvas.offsetHeight || canvas.clientHeight || 180;
+        if (w > 0) canvas.width = w;
+        if (h > 0) canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) { ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
         sigPad.current.clear();
+        sigPad.current.on();
       }
-    }, 60);
+    }, 200);
     return () => clearTimeout(t);
   }, [isSignModalOpen]);
 
@@ -145,13 +149,16 @@ export default function PointageDetail() {
     const t = setTimeout(() => {
       if (chefSigPad.current) {
         const canvas = chefSigPad.current.getCanvas();
-        const w = canvas.offsetWidth || 440;
-        const h = canvas.offsetHeight || 180;
-        canvas.width = w;
-        canvas.height = h;
+        const w = canvas.offsetWidth || canvas.clientWidth || 440;
+        const h = canvas.offsetHeight || canvas.clientHeight || 180;
+        if (w > 0) canvas.width = w;
+        if (h > 0) canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) { ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height); }
         chefSigPad.current.clear();
+        chefSigPad.current.on();
       }
-    }, 60);
+    }, 200);
     return () => clearTimeout(t);
   }, [isChefSignOpen]);
 
@@ -204,32 +211,26 @@ export default function PointageDetail() {
     }
   };
 
-  // Get current entry data (either edited or original)
   const getEntry = useCallback((entry: any) => ({
     ...entry,
     ...(editedEntries[entry.id] || {}),
   }), [editedEntries]);
 
-  // Update an entry field
   const updateEntry = (entryId: number, field: string, value: any) => {
     setEditedEntries(prev => {
       const entry = sheet?.entries?.find((e: any) => e.id === entryId);
       const current = { ...(entry || {}), ...(prev[entryId] || {}) };
       const updated = { ...current, [field]: value };
-      
-      // Auto-calc hours if times provided
       if (field === "arrivalTime" || field === "departureTime") {
         const arrival = field === "arrivalTime" ? value : (current.arrivalTime || "");
         const dep = field === "departureTime" ? value : (current.departureTime || "");
         const hours = calcHours(arrival, dep);
         if (hours !== null) updated.hoursWorked = hours;
       }
-      
       return { ...prev, [entryId]: updated };
     });
   };
 
-  // Save all changes
   const handleSave = async () => {
     if (!sheet) return;
     setIsSaving(true);
@@ -263,7 +264,6 @@ export default function PointageDetail() {
     }
   };
 
-  // Submit with signature
   const handleSignSubmit = () => {
     if (sigPad.current?.isEmpty()) {
       toast({ title: "Signature requise", variant: "destructive" });
@@ -280,7 +280,6 @@ export default function PointageDetail() {
     });
   };
 
-  // Chef sign the sheet (without submitting)
   const handleChefSign = async () => {
     if (chefSigPad.current?.isEmpty()) {
       toast({ title: "Signature requise", variant: "destructive" });
@@ -300,7 +299,6 @@ export default function PointageDetail() {
     }
   };
 
-  // Admin approve/reject
   const handleAdminAction = () => {
     approveMutation.mutate({
       id,
@@ -326,10 +324,9 @@ export default function PointageDetail() {
   const statusCfg = SHEET_STATUS_CONFIG[sheet.status] || SHEET_STATUS_CONFIG.BROUILLON;
   const hasChanges = Object.keys(editedEntries).length > 0;
 
-  // Compute totals
   const totalDue = sheet.entries?.reduce((sum: number, e: any) => {
     const entry = getEntry(e);
-    const amount = calcAmountDue({
+    return sum + calcAmountDue({
       status: entry.status || "PRESENT",
       payMode: entry.payMode || "PAR_JOUR",
       hoursWorked: entry.hoursWorked,
@@ -338,18 +335,11 @@ export default function PointageDetail() {
       taskAmount: entry.taskAmount,
       taskProgressPct: entry.taskProgressPct,
     });
-    return sum + amount;
   }, 0) ?? 0;
 
   return (
     <AppLayout title={`Pointage — ${formatDate(sheet.date)}`}>
       <div className="space-y-6">
-
-        {/* Back button */}
-        <Button variant="ghost" onClick={() => navigate("/pointage")} className="text-muted-foreground -ml-2 w-fit">
-          <ArrowLeft className="w-4 h-4 mr-1.5" />
-          Retour aux fiches
-        </Button>
 
         {/* Header card */}
         <div className="bg-white rounded-2xl border border-border/50 shadow-sm p-6">
@@ -368,8 +358,7 @@ export default function PointageDetail() {
             <div className="flex items-center gap-3">
               {sheet.locked && (
                 <span className="flex items-center gap-1 text-xs font-medium text-gray-500">
-                  <Lock className="w-3.5 h-3.5" />
-                  Verrouillée
+                  <Lock className="w-3.5 h-3.5" /> Verrouillée
                 </span>
               )}
               <Badge className={`${statusCfg.color} border-0 px-3 py-1 text-sm font-semibold`}>
@@ -378,7 +367,7 @@ export default function PointageDetail() {
             </div>
           </div>
 
-          {/* Total pay summary */}
+          {/* Totaux */}
           <div className="mt-4 grid grid-cols-3 gap-4">
             <div className="bg-primary/5 rounded-xl p-3 text-center">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total à payer</p>
@@ -398,9 +387,8 @@ export default function PointageDetail() {
             </div>
           </div>
 
-          {/* Action buttons */}
+          {/* Actions */}
           <div className="flex flex-wrap gap-3 mt-5 pt-5 border-t border-border/50">
-            {/* PDF Export — always available */}
             <Button
               variant="outline"
               onClick={handleExportPDF}
@@ -420,40 +408,34 @@ export default function PointageDetail() {
 
             {canSign && (
               <Button onClick={() => setIsChefSignOpen(true)} variant="outline" className="rounded-xl border-primary text-primary">
-                <PenTool className="w-4 h-4 mr-2" />
-                Signer la fiche
+                <PenTool className="w-4 h-4 mr-2" /> Signer la fiche
               </Button>
             )}
 
             {sheet.chefSignature && isEditable && !submitMutation.isPending && (
               <Button onClick={() => setIsSignModalOpen(true)} className="rounded-xl bg-accent text-white">
-                <FileSignature className="w-4 h-4 mr-2" />
-                Soumettre pour validation
+                <FileSignature className="w-4 h-4 mr-2" /> Soumettre pour validation
               </Button>
             )}
 
             {!sheet.chefSignature && isEditable && (
               <Button onClick={() => setIsSignModalOpen(true)} className="rounded-xl bg-accent text-white">
-                <FileSignature className="w-4 h-4 mr-2" />
-                Signer & Soumettre
+                <FileSignature className="w-4 h-4 mr-2" /> Signer & Soumettre
               </Button>
             )}
 
             {canApprove && (
               <>
                 <Button onClick={() => { setApprovalType("approve"); setIsAdminModalOpen(true); }} className="rounded-xl bg-green-600 hover:bg-green-700 text-white">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Approuver
+                  <CheckCircle className="w-4 h-4 mr-2" /> Approuver
                 </Button>
                 <Button onClick={() => { setApprovalType("reject"); setIsAdminModalOpen(true); }} variant="outline" className="rounded-xl border-destructive text-destructive hover:bg-destructive/10">
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Rejeter
+                  <XCircle className="w-4 h-4 mr-2" /> Rejeter
                 </Button>
               </>
             )}
           </div>
 
-          {/* Chef signature preview */}
           {sheet.chefSignature && (
             <div className="mt-4 flex items-center gap-3 text-sm text-green-700">
               <CheckCircle className="w-4 h-4" />
@@ -463,9 +445,9 @@ export default function PointageDetail() {
           )}
         </div>
 
-        {/* Entries */}
+        {/* Entrées ouvriers */}
         <div className="space-y-3">
-          {sheet.entries?.map((entry: any, idx: number) => {
+          {sheet.entries?.map((entry: any) => {
             const e = getEntry(entry);
             const statusOpt = STATUS_OPTIONS.find(s => s.value === (e.status || "PRESENT"));
             const isExpanded = expandedEntries.has(entry.id);
@@ -481,13 +463,11 @@ export default function PointageDetail() {
 
             return (
               <div key={entry.id} className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
-                {/* Row header */}
                 <div
                   className="flex items-center gap-3 px-5 py-4 cursor-pointer hover:bg-muted/20 transition-colors"
                   onClick={() => setExpandedEntries(prev => {
                     const next = new Set(prev);
-                    if (next.has(entry.id)) next.delete(entry.id);
-                    else next.add(entry.id);
+                    if (next.has(entry.id)) next.delete(entry.id); else next.add(entry.id);
                     return next;
                   })}
                 >
@@ -506,18 +486,16 @@ export default function PointageDetail() {
                       {statusOpt?.label}
                     </span>
                     <span className="font-bold text-foreground text-sm">{formatFCFA(amount)}</span>
-                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={e => { e.stopPropagation(); setReclamationEntry(entry); }}>
+                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={ev => { ev.stopPropagation(); setReclamationEntry(entry); }}>
                       <MessageSquare className="w-4 h-4 text-muted-foreground hover:text-primary" />
                     </Button>
                     {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                   </div>
                 </div>
 
-                {/* Expanded row details */}
                 {isExpanded && (
                   <div className="px-5 pb-5 pt-2 border-t border-border/30 space-y-4">
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {/* Status */}
                       <div className="space-y-1.5">
                         <Label className="text-xs">Statut présence</Label>
                         {isEditable ? (
@@ -527,12 +505,9 @@ export default function PointageDetail() {
                               {STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                             </SelectContent>
                           </Select>
-                        ) : (
-                          <p className="text-sm font-medium">{statusOpt?.label}</p>
-                        )}
+                        ) : <p className="text-sm font-medium">{statusOpt?.label}</p>}
                       </div>
 
-                      {/* Pay mode */}
                       <div className="space-y-1.5">
                         <Label className="text-xs">Mode de paiement</Label>
                         {isEditable ? (
@@ -543,149 +518,73 @@ export default function PointageDetail() {
                               <SelectItem value="PAR_TACHE">Par tâche</SelectItem>
                             </SelectContent>
                           </Select>
-                        ) : (
-                          <p className="text-sm font-medium">{e.payMode === "PAR_TACHE" ? "Par tâche" : "Par jour"}</p>
-                        )}
+                        ) : <p className="text-sm font-medium">{e.payMode === "PAR_TACHE" ? "Par tâche" : "Par jour"}</p>}
                       </div>
 
-                      {/* Arrival time */}
                       <div className="space-y-1.5">
                         <Label className="text-xs">Heure arrivée</Label>
                         {isEditable ? (
-                          <Input
-                            type="time"
-                            value={e.arrivalTime || ""}
-                            onChange={ev => updateEntry(entry.id, "arrivalTime", ev.target.value)}
-                            className="h-9 rounded-xl text-sm"
-                          />
-                        ) : (
-                          <p className="text-sm font-medium">{e.arrivalTime || "—"}</p>
-                        )}
+                          <Input type="time" value={e.arrivalTime || ""} onChange={ev => updateEntry(entry.id, "arrivalTime", ev.target.value)} className="h-9 rounded-xl text-sm" />
+                        ) : <p className="text-sm font-medium">{e.arrivalTime || "—"}</p>}
                       </div>
 
-                      {/* Departure time */}
                       <div className="space-y-1.5">
                         <Label className="text-xs">Heure départ</Label>
                         {isEditable ? (
-                          <Input
-                            type="time"
-                            value={e.departureTime || ""}
-                            onChange={ev => updateEntry(entry.id, "departureTime", ev.target.value)}
-                            className="h-9 rounded-xl text-sm"
-                          />
-                        ) : (
-                          <p className="text-sm font-medium">{e.departureTime || "—"}</p>
-                        )}
+                          <Input type="time" value={e.departureTime || ""} onChange={ev => updateEntry(entry.id, "departureTime", ev.target.value)} className="h-9 rounded-xl text-sm" />
+                        ) : <p className="text-sm font-medium">{e.departureTime || "—"}</p>}
                       </div>
 
-                      {/* Hours worked */}
                       <div className="space-y-1.5">
                         <Label className="text-xs">Heures travaillées</Label>
                         {isEditable ? (
-                          <Input
-                            type="number"
-                            step="0.25"
-                            min="0"
-                            max="24"
-                            value={e.hoursWorked || ""}
-                            onChange={ev => updateEntry(entry.id, "hoursWorked", parseFloat(ev.target.value) || 0)}
-                            className="h-9 rounded-xl text-sm"
-                          />
-                        ) : (
-                          <p className="text-sm font-medium">{e.hoursWorked ? `${e.hoursWorked}h` : "—"}</p>
-                        )}
+                          <Input type="number" step="0.25" min="0" max="24" value={e.hoursWorked || ""} onChange={ev => updateEntry(entry.id, "hoursWorked", parseFloat(ev.target.value) || 0)} className="h-9 rounded-xl text-sm" />
+                        ) : <p className="text-sm font-medium">{e.hoursWorked ? `${e.hoursWorked}h` : "—"}</p>}
                       </div>
 
-                      {/* Overtime hours */}
                       {(e.status === "HEURE_SUP" || e.overtimeHours > 0) && (
                         <div className="space-y-1.5">
                           <Label className="text-xs">Heures sup.</Label>
                           {isEditable ? (
-                            <Input
-                              type="number"
-                              step="0.25"
-                              min="0"
-                              value={e.overtimeHours || ""}
-                              onChange={ev => updateEntry(entry.id, "overtimeHours", parseFloat(ev.target.value) || 0)}
-                              className="h-9 rounded-xl text-sm"
-                            />
-                          ) : (
-                            <p className="text-sm font-medium">{e.overtimeHours ? `${e.overtimeHours}h` : "—"}</p>
-                          )}
+                            <Input type="number" step="0.25" min="0" value={e.overtimeHours || ""} onChange={ev => updateEntry(entry.id, "overtimeHours", parseFloat(ev.target.value) || 0)} className="h-9 rounded-xl text-sm" />
+                          ) : <p className="text-sm font-medium">{e.overtimeHours ? `${e.overtimeHours}h` : "—"}</p>}
                         </div>
                       )}
 
-                      {/* Daily wage (PAR_JOUR) */}
                       {(e.payMode || "PAR_JOUR") === "PAR_JOUR" && (
                         <div className="space-y-1.5">
                           <Label className="text-xs">Salaire journalier (FCFA)</Label>
                           {isEditable ? (
-                            <Input
-                              type="number"
-                              min="0"
-                              value={e.dailyWage || ""}
-                              onChange={ev => updateEntry(entry.id, "dailyWage", parseFloat(ev.target.value) || 0)}
-                              className="h-9 rounded-xl text-sm"
-                              placeholder={entry.defaultDailyWage ? `${entry.defaultDailyWage}` : "0"}
-                            />
-                          ) : (
-                            <p className="text-sm font-medium">{e.dailyWage ? formatFCFA(e.dailyWage) : "—"}</p>
-                          )}
+                            <Input type="number" min="0" value={e.dailyWage || ""} onChange={ev => updateEntry(entry.id, "dailyWage", parseFloat(ev.target.value) || 0)} className="h-9 rounded-xl text-sm" placeholder={entry.defaultDailyWage ? `${entry.defaultDailyWage}` : "0"} />
+                          ) : <p className="text-sm font-medium">{e.dailyWage ? formatFCFA(e.dailyWage) : "—"}</p>}
                         </div>
                       )}
 
-                      {/* Task amount (PAR_TACHE) */}
                       {e.payMode === "PAR_TACHE" && (
                         <>
                           <div className="space-y-1.5">
                             <Label className="text-xs">Montant de la tâche (FCFA)</Label>
                             {isEditable ? (
-                              <Input
-                                type="number"
-                                min="0"
-                                value={e.taskAmount || ""}
-                                onChange={ev => updateEntry(entry.id, "taskAmount", parseFloat(ev.target.value) || 0)}
-                                className="h-9 rounded-xl text-sm"
-                              />
-                            ) : (
-                              <p className="text-sm font-medium">{e.taskAmount ? formatFCFA(e.taskAmount) : "—"}</p>
-                            )}
+                              <Input type="number" min="0" value={e.taskAmount || ""} onChange={ev => updateEntry(entry.id, "taskAmount", parseFloat(ev.target.value) || 0)} className="h-9 rounded-xl text-sm" />
+                            ) : <p className="text-sm font-medium">{e.taskAmount ? formatFCFA(e.taskAmount) : "—"}</p>}
                           </div>
                           <div className="space-y-1.5">
                             <Label className="text-xs">Avancement (%)</Label>
                             {isEditable ? (
-                              <Input
-                                type="number"
-                                min="0"
-                                max="100"
-                                value={e.taskProgressPct ?? 100}
-                                onChange={ev => updateEntry(entry.id, "taskProgressPct", parseInt(ev.target.value) || 100)}
-                                className="h-9 rounded-xl text-sm"
-                              />
-                            ) : (
-                              <p className="text-sm font-medium">{e.taskProgressPct ?? 100}%</p>
-                            )}
+                              <Input type="number" min="0" max="100" value={e.taskProgressPct ?? 100} onChange={ev => updateEntry(entry.id, "taskProgressPct", parseInt(ev.target.value) || 100)} className="h-9 rounded-xl text-sm" />
+                            ) : <p className="text-sm font-medium">{e.taskProgressPct ?? 100}%</p>}
                           </div>
                         </>
                       )}
 
-                      {/* Notes */}
                       <div className="space-y-1.5 col-span-2">
                         <Label className="text-xs">Notes</Label>
                         {isEditable ? (
-                          <Input
-                            value={e.notes || ""}
-                            onChange={ev => updateEntry(entry.id, "notes", ev.target.value)}
-                            placeholder="Commentaire..."
-                            className="h-9 rounded-xl text-sm"
-                          />
-                        ) : (
-                          <p className="text-sm text-muted-foreground">{e.notes || "—"}</p>
-                        )}
+                          <Input value={e.notes || ""} onChange={ev => updateEntry(entry.id, "notes", ev.target.value)} placeholder="Commentaire..." className="h-9 rounded-xl text-sm" />
+                        ) : <p className="text-sm text-muted-foreground">{e.notes || "—"}</p>}
                       </div>
                     </div>
 
-                    {/* Amount due summary */}
                     <div className="flex items-center justify-between bg-primary/5 rounded-xl px-4 py-3">
                       <span className="text-sm font-medium text-muted-foreground">Montant dû</span>
                       <span className="text-lg font-display font-bold text-primary">{formatFCFA(amount)}</span>
@@ -698,7 +597,7 @@ export default function PointageDetail() {
         </div>
       </div>
 
-      {/* Sign & Submit Modal */}
+      {/* Modal : Signer & Soumettre */}
       <Dialog open={isSignModalOpen} onOpenChange={setIsSignModalOpen}>
         <DialogContent className="sm:max-w-[480px] rounded-2xl">
           <DialogHeader>
@@ -717,18 +616,14 @@ export default function PointageDetail() {
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => sigPad.current?.clear()} className="rounded-xl">Effacer</Button>
             <Button variant="outline" onClick={() => setIsSignModalOpen(false)} className="flex-1 rounded-xl">Annuler</Button>
-            <Button
-              onClick={handleSignSubmit}
-              disabled={submitMutation.isPending}
-              className="flex-1 rounded-xl bg-accent text-white"
-            >
+            <Button onClick={handleSignSubmit} disabled={submitMutation.isPending} className="flex-1 rounded-xl bg-accent text-white">
               {submitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><FileSignature className="w-4 h-4 mr-2" />Soumettre</>}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Chef Sign (without submit) Modal */}
+      {/* Modal : Signature chef seule */}
       <Dialog open={isChefSignOpen} onOpenChange={setIsChefSignOpen}>
         <DialogContent className="sm:max-w-[480px] rounded-2xl">
           <DialogHeader>
@@ -746,14 +641,13 @@ export default function PointageDetail() {
             <Button variant="outline" onClick={() => chefSigPad.current?.clear()} className="rounded-xl">Effacer</Button>
             <Button variant="outline" onClick={() => setIsChefSignOpen(false)} className="flex-1 rounded-xl">Annuler</Button>
             <Button onClick={handleChefSign} className="flex-1 rounded-xl bg-primary text-white">
-              <PenTool className="w-4 h-4 mr-2" />
-              Apposer ma signature
+              <PenTool className="w-4 h-4 mr-2" /> Apposer ma signature
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Admin approve/reject Modal */}
+      {/* Modal : Approbation admin */}
       <Dialog open={isAdminModalOpen} onOpenChange={setIsAdminModalOpen}>
         <DialogContent className="sm:max-w-[420px] rounded-2xl">
           <DialogHeader>
@@ -766,40 +660,27 @@ export default function PointageDetail() {
           </p>
           <div className="space-y-2">
             <Label>Commentaire (optionnel)</Label>
-            <Textarea
-              value={adminComment}
-              onChange={e => setAdminComment(e.target.value)}
-              placeholder="Motif du rejet, remarques..."
-              className="rounded-xl resize-none"
-              rows={3}
-            />
+            <Textarea value={adminComment} onChange={e => setAdminComment(e.target.value)} placeholder="Motif du rejet, remarques..." className="rounded-xl resize-none" rows={3} />
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setIsAdminModalOpen(false)} className="flex-1 rounded-xl">Annuler</Button>
-            <Button
-              onClick={handleAdminAction}
-              disabled={approveMutation.isPending}
-              className={`flex-1 rounded-xl text-white ${approvalType === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-destructive hover:bg-destructive/90"}`}
-            >
+            <Button onClick={handleAdminAction} disabled={approveMutation.isPending}
+              className={`flex-1 rounded-xl text-white ${approvalType === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-destructive hover:bg-destructive/90"}`}>
               {approveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : approvalType === "approve" ? "Approuver" : "Rejeter"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Reclamation Modal */}
+      {/* Modal : Réclamation */}
       {reclamationEntry && (
-        <ReclamationModal
-          entry={reclamationEntry}
-          sheetId={id}
-          onClose={() => setReclamationEntry(null)}
-        />
+        <ReclamationModal entry={reclamationEntry} sheetId={id} onClose={() => setReclamationEntry(null)} />
       )}
     </AppLayout>
   );
 }
 
-// ─── Reclamation Modal ────────────────────────────────────────────────────────
+// ─── Réclamation Modal ────────────────────────────────────────────────────────
 
 function ReclamationModal({ entry, sheetId, onClose }: { entry: any; sheetId: number; onClose: () => void }) {
   const { toast } = useToast();
@@ -809,20 +690,13 @@ function ReclamationModal({ entry, sheetId, onClose }: { entry: any; sheetId: nu
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description.trim()) {
-      toast({ title: "Description requise", variant: "destructive" });
-      return;
-    }
+    if (!description.trim()) { toast({ title: "Description requise", variant: "destructive" }); return; }
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("hairou_token");
-      const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
-      const res = await fetch(`${BACKEND}/api/reclamations`, {
+      await apiFetch("/api/reclamations", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ sheetId, type, description }),
       });
-      if (!res.ok) throw new Error("Erreur lors de la soumission");
       toast({ title: "Réclamation envoyée", description: "L'administrateur en sera informé." });
       onClose();
     } catch (err: any) {
@@ -841,9 +715,7 @@ function ReclamationModal({ entry, sheetId, onClose }: { entry: any; sheetId: nu
             Soumettre une réclamation
           </DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Réclamation pour <strong>{entry.personnelName}</strong>
-        </p>
+        <p className="text-sm text-muted-foreground">Réclamation pour <strong>{entry.personnelName}</strong></p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>Type de réclamation</Label>
@@ -858,14 +730,7 @@ function ReclamationModal({ entry, sheetId, onClose }: { entry: any; sheetId: nu
           </div>
           <div className="space-y-2">
             <Label>Description *</Label>
-            <Textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Décrivez le problème..."
-              className="rounded-xl resize-none"
-              rows={4}
-              required
-            />
+            <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Décrivez le problème..." className="rounded-xl resize-none" rows={4} required />
           </div>
           <div className="flex gap-3">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1 rounded-xl">Annuler</Button>
