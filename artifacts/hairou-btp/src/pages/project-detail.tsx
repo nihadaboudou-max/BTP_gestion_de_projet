@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useLocation } from "wouter";
 import { AppLayout } from "@/components/layout";
 import { 
   useGetPointageSheet, 
@@ -102,8 +102,11 @@ async function apiFetch(path: string, options?: RequestInit) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function PointageDetail() {
-  const [, params] = useRoute("/pointage/:id");
-  const id = parseInt(params?.id || "0");
+  // Extraction robuste de l'ID depuis l'URL (compatible avec ProtectedRoute wrapper)
+  const pathId = typeof window !== "undefined"
+    ? window.location.pathname.split("/").filter(Boolean).pop()
+    : "0";
+  const id = parseInt(pathId || "0");
   const { user } = useAuth();
   
   const { data: sheet, isLoading } = useGetPointageSheet(id, { query: { enabled: !!id } });
