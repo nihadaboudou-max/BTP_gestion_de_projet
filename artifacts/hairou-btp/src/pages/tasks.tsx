@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import {
   useListTasks, useCreateTask, useUpdateTask, useListProjects, useListUsers,
@@ -46,16 +46,11 @@ export default function Tasks() {
 
   const canCreate = user?.role === "ADMIN" || user?.role === "CHEF_CHANTIER";
 
-  // Ouvriers voient seulement leurs tâches assignées
-  const visibleTasks = user?.role === "OUVRIER"
-    ? (tasks?.filter(t => t.assignedToId === user.id) ?? [])
-    : (tasks ?? []);
-
   const grouped = {
-    A_FAIRE:  visibleTasks.filter(t => t.status === "A_FAIRE"),
-    EN_COURS: visibleTasks.filter(t => t.status === "EN_COURS"),
-    BLOQUEE:  visibleTasks.filter(t => t.status === "BLOQUEE"),
-    TERMINEE: visibleTasks.filter(t => t.status === "TERMINEE"),
+    A_FAIRE:  tasks?.filter(t => t.status === "A_FAIRE") ?? [],
+    EN_COURS: tasks?.filter(t => t.status === "EN_COURS") ?? [],
+    BLOQUEE:  tasks?.filter(t => t.status === "BLOQUEE") ?? [],
+    TERMINEE: tasks?.filter(t => t.status === "TERMINEE") ?? [],
   };
 
   return (
@@ -159,8 +154,7 @@ function TaskCard({ task, currentUserId, currentUserRole }: { task: any; current
     setConfirming(true);
     try {
       const token = localStorage.getItem('hairou_token');
-      const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
-      const res = await fetch(`${BACKEND}/api/tasks/${task.id}/confirm`, {
+      const res = await fetch(`/api/tasks/${task.id}/confirm`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -234,9 +228,23 @@ function TaskCard({ task, currentUserId, currentUserRole }: { task: any; current
 function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { data: projects } = useListProjects();
-  const { data: users } = useListUsers();
   const { user: currentUser } = useAuth();
+  const [projects, setProjects] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+
+  // Charger projets et users directement depuis le backend
+  useEffect(() => {
+    const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+    const token = localStorage.getItem("hairou_token");
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      fetch(`${BACKEND}/api/projects`, { headers }).then(r => r.json()),
+      fetch(`${BACKEND}/api/users`, { headers }).then(r => r.json()),
+    ]).then(([p, u]) => {
+      setProjects(Array.isArray(p) ? p : []);
+      setUsers(Array.isArray(u) ? u : []);
+    }).catch(() => {});
+  }, []);
 
   const createMutation = useCreateTask({
     mutation: {
