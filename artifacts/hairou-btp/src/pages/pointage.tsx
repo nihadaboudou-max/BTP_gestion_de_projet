@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
+import { AppLayout } from "@/components/layout";
 import { useListPointageSheets } from "@workspace/api-client-react";
 import { formatDate, formatFCFA } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 function apiFetch(path: string, opts?: RequestInit) {
   const token = localStorage.getItem("hairou_token");
-  const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+  const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
   const fullUrl = path.startsWith("http") ? path : `${BACKEND}${path}`;
   return fetch(fullUrl, {
     ...opts,
