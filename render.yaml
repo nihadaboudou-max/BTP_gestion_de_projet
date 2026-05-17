@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: hairou-btp
+    env: node
+    buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install && pnpm --filter ./artifacts/hairou-btp run build
+    startCommand: pnpm --filter ./artifacts/api-server run start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0

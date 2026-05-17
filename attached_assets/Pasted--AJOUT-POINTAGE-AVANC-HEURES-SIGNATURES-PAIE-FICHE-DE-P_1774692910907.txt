@@ -1,0 +1,202 @@
+```
+## AJOUT — POINTAGE AVANCÉ : HEURES + SIGNATURES + PAIE
+
+---
+
+## FICHE DE POINTAGE DÉTAILLÉE (par ouvrier, par jour)
+
+### Structure d'une entrée de pointage par ouvrier:
+
+┌─────────────────────────────────────────────────────────────────┐
+│  OUVRIER: [Nom Prénom]  │  RÔLE: [Maçon/Électricien/etc.]      │
+├─────────────────────────────────────────────────────────────────┤
+│  ARRIVÉE                                                        │
+│  Heure d'arrivée: [HH:MM]  (saisie manuelle ou horloge live)   │
+│  Signature arrivée: [PAD DE SIGNATURE]                          │
+│  Signé à: [timestamp automatique]                               │
+├─────────────────────────────────────────────────────────────────┤
+│  DÉPART                                                         │
+│  Heure de départ: [HH:MM]  (saisie manuelle ou horloge live)   │
+│  Signature départ: [PAD DE SIGNATURE]                           │
+│  Signé à: [timestamp automatique]                               │
+├─────────────────────────────────────────────────────────────────┤
+│  CALCUL DE PAIE                                                 │
+│  Mode de paie: ● Par jour  ○ Par tâche                         │
+│                                                                 │
+│  [SI PAR JOUR]                                                  │
+│  Tarif journalier: [______] FCFA                               │
+│  Statut présence: Présent / Demi-journée / Absent              │
+│  Montant dû: calculé auto                                       │
+│    - Présent     → 100% du tarif                               │
+│    - Demi-journée → 50% du tarif                               │
+│    - Absent      → 0 FCFA                                      │
+│                                                                 │
+│  [SI PAR TÂCHE]                                                 │
+│  Tâche effectuée: [dropdown tâches du projet]                  │
+│  Montant négocié pour cette tâche: [______] FCFA               │
+│  Statut tâche: En cours / Terminée / Partielle                 │
+│  Montant dû: saisi manuellement ou calculé selon avancement %  │
+├─────────────────────────────────────────────────────────────────┤
+│  Heures travaillées: [calculé auto = départ - arrivée]         │
+│  Notes: [champ texte libre]                                     │
+└─────────────────────────────────────────────────────────────────┘
+
+---
+
+## LOGIQUE DE SIGNATURE ÉLECTRONIQUE
+
+### Deux signatures par ouvrier par jour:
+
+SIGNATURE ARRIVÉE:
+- Déclenchée par le chef de chantier au moment de l'arrivée
+- L'ouvrier signe sur l'écran du chef OU sur son propre téléphone
+  (lien de signature envoyé par notification)
+- Timestamp enregistré automatiquement en base
+- Format stocké: base64 PNG + timestamp ISO + user_id
+
+SIGNATURE DÉPART:
+- Même processus à la fin de la journée
+- Si l'ouvrier ne signe pas le départ → alerte au chef
+- Chef peut valider manuellement avec sa propre signature + motif
+
+SIGNATURE DU CHEF (validation globale de la fiche):
+- Une fois tous les ouvriers pointés → chef signe la fiche entière
+- Sa signature valide l'ensemble de la fiche
+- Fiche verrouillée après signature chef → plus modifiable
+- Admin peut déverrouiller si réclamation justifiée
+
+### Composant SignaturePad (React):
+- Utiliser la librairie: signature_pad (npm)
+- Canvas responsive adapté mobile
+- Boutons: [Effacer] [Valider la signature]
+- Affichage miniature de la signature après validation
+- Fond blanc, trait noir, épaisseur 2px
+
+---
+
+## CALCUL AUTOMATIQUE DE PAIE
+
+### Règles de calcul:
+
+PAR JOUR:
+  montant_du = tarif_journalier × coefficient_presence
+  coefficients:
+    PRESENT      → 1.0   (100%)
+    DEMI_JOURNEE → 0.5   (50%)
+    ABSENT       → 0.0   (0%)
+    HEURE_SUP    → 1.0 + (heures_sup × tarif_horaire_sup)
+
+PAR TÂCHE:
+  montant_du = montant_negocie × (pourcentage_avancement / 100)
+  exemple: tâche à 50 000 FCFA terminée à 100% → 50 000 FCFA
+           tâche à 50 000 FCFA partielle  60%  → 30 000 FCFA
+
+HEURES SUPPLÉMENTAIRES (optionnel):
+  Si heures_travaillees > 8h → heures sup détectées automatiquement
+  Tarif horaire sup = tarif_journalier / 8 × 1.5
+  Chef confirme ou annule les heures sup
+
+---
+
+## TABLEAU RÉCAPITULATIF DE LA FICHE (bas de fiche)
+
+┌────────────────┬──────┬──────┬───────┬──────────┬────────────┬───────────────┐
+│ Ouvrier        │Arr.  │Départ│Heures │Statut    │Mode Paie   │ Montant Dû    │
+├────────────────┼──────┼──────┼───────┼──────────┼────────────┼───────────────┤
+│ Moussa Diop    │07:30 │17:00 │ 9h30  │Présent   │Par jour    │ 12 000 FCFA   │
+│ Fatou Camara   │08:00 │12:00 │ 4h00  │Demi-j.   │Par jour    │  5 000 FCFA   │
+│ Ibou Sarr      │07:45 │17:00 │ 9h15  │Présent   │Par tâche   │ 35 000 FCFA   │
+│ Aminata Fall   │ --   │ --   │  --   │Absent    │Par jour    │  0 FCFA       │
+├────────────────┴──────┴──────┴───────┴──────────┴────────────┴───────────────┤
+│                                          TOTAL JOURNÉE:    52 000 FCFA       │
+│                                Signature Chef: [miniature signature]          │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+---
+
+## BASE DE DONNÉES — MISE À JOUR POINTAGE
+
+```sql
+-- Table pointage_entries (une ligne par ouvrier par jour)
+CREATE TABLE pointage_entries (
+  id                    SERIAL PRIMARY KEY,
+  sheet_id              INTEGER REFERENCES pointage_sheets(id) ON DELETE CASCADE,
+  worker_id             INTEGER REFERENCES users(id),
+  project_id            INTEGER REFERENCES projects(id),
+  date                  DATE NOT NULL,
+
+  -- Arrivée
+  arrival_time          TIME,
+  arrival_signature     TEXT,        -- base64 PNG
+  arrival_signed_at     TIMESTAMP,
+  arrival_signed_by     INTEGER REFERENCES users(id), -- ouvrier ou chef
+
+  -- Départ
+  departure_time        TIME,
+  departure_signature   TEXT,        -- base64 PNG
+  departure_signed_at   TIMESTAMP,
+  departure_signed_by   INTEGER REFERENCES users(id),
+
+  -- Présence
+  status  VARCHAR(20) CHECK (status IN ('PRESENT','ABSENT','DEMI_JOURNEE','HEURE_SUP')),
+  hours_worked          DECIMAL(4,2), -- calculé auto
+
+  -- Paie
+  pay_mode  VARCHAR(10) CHECK (pay_mode IN ('PAR_JOUR','PAR_TACHE')),
+  daily_rate            INTEGER,     -- FCFA, si PAR_JOUR
+  task_id               INTEGER REFERENCES tasks(id), -- si PAR_TACHE
+  task_amount           INTEGER,     -- montant négocié tâche
+  task_progress_pct     INTEGER DEFAULT 100, -- % avancement tâche
+  overtime_hours        DECIMAL(3,2) DEFAULT 0,
+  amount_due            INTEGER,     -- FCFA, calculé auto
+
+  notes                 TEXT,
+  created_at            TIMESTAMP DEFAULT NOW()
+);
+
+-- Table pointage_sheets (fiche globale du jour)
+CREATE TABLE pointage_sheets (
+  id                    SERIAL PRIMARY KEY,
+  project_id            INTEGER REFERENCES projects(id),
+  date                  DATE NOT NULL,
+  created_by            INTEGER REFERENCES users(id), -- chef ou admin
+  chef_signature        TEXT,        -- signature validation finale
+  chef_signed_at        TIMESTAMP,
+  status  VARCHAR(20) CHECK (status IN ('BROUILLON','SOUMISE','VALIDEE','REJETEE'))
+                        DEFAULT 'BROUILLON',
+  total_amount_due      INTEGER,     -- somme auto de tous les montants
+  admin_comment         TEXT,
+  locked                BOOLEAN DEFAULT false,
+  created_at            TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## EXPORT PDF DE LA FICHE DE POINTAGE
+
+Le PDF généré contient:
+- En-tête HAIROU (logo + couleurs navy)
+- Nom du projet, date, chef responsable
+- Tableau complet: ouvrier / arrivée / signature arrivée / départ / 
+  signature départ / heures / statut / mode paie / montant dû
+- Les signatures apparaissent comme images dans le PDF
+- Ligne TOTAL en bas
+- Signature du chef en bas de page avec date/heure
+- Filigrane "VALIDÉE" ou "EN ATTENTE" selon statut
+- Pied de page: "HAIROU - Gestion BTP — Document confidentiel"
+
+---
+
+## RÈGLES MÉTIER CRITIQUES
+
+1. Une fiche ne peut pas être soumise si un ouvrier n'a pas sa signature départ
+   → Chef reçoit alerte: "3 ouvriers sans signature départ"
+2. Si arrivée > 09h00 → retard signalé automatiquement (badge orange)
+3. Si heures < 4h → proposer automatiquement "Demi-journée"
+4. Si heures > 10h → alerte heures supplémentaires détectées
+5. Montant total de la fiche mis à jour en temps réel à chaque saisie
+6. Fiche verrouillée après signature chef → réclamation obligatoire pour modifier
+7. Chaque fiche archivée automatiquement le lundi pour la semaine précédente
+8. Admin reçoit notification avec total masse salariale de la semaine
+```

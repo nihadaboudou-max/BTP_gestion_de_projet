@@ -1,0 +1,212 @@
+Build a complete, professional BTP (Construction) management platform called "HAIROU - Gestion BTP" using React + Node.js/Express + PostgreSQL.
+
+## TECH STACK
+- Frontend: React 18 + Tailwind CSS + Lucide Icons
+- Backend: Node.js + Express + REST API
+- Database: PostgreSQL (Replit DB)
+- Auth: JWT tokens + bcrypt password hashing
+- Real-time: WebSockets (Socket.io) for live notifications & chat
+- PDF: jsPDF for report generation
+- Signatures: signature_pad library for electronic signatures
+
+## COLOR PALETTE
+- Navy: #011638 | Dark Green: #2E5339 | Light Beige: #EAF0CE
+- Blue Gray: #7C98B3 | Off White: #F4FFF8 | Teal: #0B5563
+
+---
+
+## 1. AUTHENTICATION SYSTEM
+- Login page with email + password (JWT, bcrypt)
+- Role-based access: ADMIN / CHEF_CHANTIER / OUVRIER
+- Admin default: admin@hairou.com / Admin2024!
+- User default: chef@hairou.com / Chef2024!
+- Admin can create accounts, assign roles and granular permissions:
+  * can_add_workers | can_delete_workers | can_edit_workers
+  * can_add_expenses | can_delete_expenses | can_add_projects
+  * can_view_finances | can_manage_pointage
+- Session persistence with JWT refresh tokens
+- No console errors — full error handling everywhere
+
+---
+
+## 2. DASHBOARD (Admin & User views)
+Admin dashboard shows:
+- KPI cards: Total projects, Active sites, Total workers, Monthly expenses
+- Live activity feed (who did what, when)
+- Projects list with status + budget progress bars
+- Pending approvals (new users, expense validation)
+- Recent messages from field users
+- Alerts: budget overruns, missing pointage
+
+User/Chef dashboard shows:
+- Their assigned projects only
+- Today's pointage status (done / pending)
+- Quick actions: Add expense, Start pointage, Send message
+- Their project budget vs spent
+
+---
+
+## 3. PROJECTS (Chantiers) MODULE
+Each project has:
+- Name, location, client name, start date, end date (planned)
+- Status: Planifié / En cours / En pause / Terminé
+- Budget total, budget spent (auto-calculated from expenses)
+- Assigned chef(s) and workers
+- Project documents upload
+- Progress percentage (manual or auto from tasks)
+- Full CRUD: create, edit, delete, archive
+
+Project detail page shows:
+- Tasks list with status
+- Expenses list
+- Pointage history
+- Workers assigned
+- Messages/comments thread
+
+---
+
+## 4. TASKS MODULE
+- Tasks linked to a project
+- Fields: title, description, assigned to, due date, priority, status
+- Status: À faire / En cours / Bloquée / Terminée
+- Comments on tasks
+- Admin sees all tasks; users see their own
+
+---
+
+## 5. POINTAGE (Daily Attendance & Timesheet)
+This is the CORE module:
+
+Pointage Sheet per day per project:
+- Date, Project name, Chef responsible (auto-filled by logged-in user)
+- Worker list with: Name, Arrival time, Departure time, Hours worked (auto), Daily wage, Total pay
+- Add/remove workers inline on the sheet
+- Status per worker: Présent / Absent / Demi-journée
+- Notes field per worker
+- "Signer la fiche" button → opens signature pad (signature_pad library)
+  * Chef signs electronically
+  * Signature saved as base64 image on the sheet
+- Submit sheet → locked for editing, sent to admin
+- Admin receives notification: "Nouvelle fiche de pointage soumise — [Project] — [Date]"
+- Admin can view, approve, or reject with comment
+- Fiche is auto-archived weekly (every Monday, previous week's fiches archived)
+- Admin receives weekly archive notification
+
+Pointage views:
+- Calendar view per project (days colored: all present / partial / absent / no sheet)
+- Worker attendance summary (total days, total pay due)
+- Export to PDF with electronic signature visible
+
+---
+
+## 6. PERSONNEL MODULE
+Workers database:
+- Name, role/trade (Maçon, Électricien, Plombier, etc.)
+- Phone, ID number, emergency contact
+- Daily wage, contract type
+- Assigned projects
+- Attendance history summary
+- Total pay owed (calculated from pointage)
+
+Permissions: only users with can_add_workers can add/edit/delete workers
+
+---
+
+## 7. EXPENSES (Dépenses) MODULE
+Each expense:
+- Title, category (Matériaux, Équipements, Transport, Carburant, Nourriture, Autre)
+- Amount (FCFA), date, supplier/vendor
+- Receipt photo upload (optional)
+- Linked to a project (required)
+- Added by (auto, logged-in user)
+- Validation status: En attente / Approuvée / Rejetée (admin validates)
+
+Admin sees ALL expenses across all projects with filters:
+- Filter by project, category, date range, status
+- Total spent per project
+- Budget vs actual chart per project
+- Export expenses to PDF/CSV
+
+---
+
+## 8. FINANCE MODULE (Admin only)
+- Global financial dashboard
+- Revenue vs expenses chart (monthly)
+- Budget allocation per project (pie chart)
+- Cash flow overview
+- Payroll summary: total wages due across all sites
+- Outstanding expenses awaiting approval
+- Export full financial report to PDF
+
+---
+
+## 9. MESSAGING / COMMENTS SYSTEM
+- Real-time chat between field user and admin (Socket.io)
+- Each project has a discussion thread (comments visible to all assigned + admin)
+- Direct messages: user can message admin directly
+- Admin sees all conversations in a unified inbox
+- Notifications badge on message icon
+- Messages marked as read/unread
+
+---
+
+## 10. NOTIFICATIONS SYSTEM (Real-time)
+Admin receives notifications for:
+- New pointage sheet submitted
+- New expense added (awaiting approval)
+- Budget overrun on any project (>90% used)
+- New user registration
+- Weekly archive ready
+- Message received
+
+User receives notifications for:
+- Expense approved/rejected
+- Task assigned
+- Message from admin
+- Pointage sheet approved/rejected
+
+Notifications stored in DB, real-time via Socket.io, bell icon with unread count
+
+---
+
+## 11. ADMINISTRATION MODULE (Admin only)
+- User management: create, edit, delete, activate/deactivate users
+- Role & permissions matrix (checkboxes per user)
+- Activity logs: full audit trail (who did what, timestamp)
+- System settings: company name, logo, currency
+- Data export: full DB export
+- Archives viewer: all weekly pointage archives
+
+---
+
+## 12. REPORTS & PDF EXPORT
+- Pointage fiche PDF: project name, date, worker list, hours, wages, chef signature
+- Weekly payroll report PDF
+- Project expense report PDF
+- All PDFs use HAIROU branding (navy header, logo)
+
+---
+
+## DATABASE SCHEMA (PostgreSQL)
+Tables: users, projects, tasks, pointage_sheets, pointage_entries, expenses, personnel, messages, notifications, activity_logs, permissions, archives
+
+---
+
+## CRITICAL REQUIREMENTS
+1. ZERO console errors — full try/catch everywhere, proper error boundaries
+2. All forms validate before submit with clear error messages
+3. All API calls handle loading states and errors
+4. Mobile responsive (workers use phones on site)
+5. All monetary values in FCFA (XOF format)
+6. French language throughout
+7. JWT auth — no plain text passwords stored
+8. Optimistic UI updates with server sync
+9. All real-time features via Socket.io
+10. Professional design using the HAIROU color palette
+
+## DEPLOYMENT
+- Backend runs on port 5000
+- Frontend proxied through Vite
+- Environment variables for DB_URL, JWT_SECRET
+- Single `npm run dev` starts both servers concurrently
+- Health check endpoint: GET /api/health

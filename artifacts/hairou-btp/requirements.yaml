@@ -1,0 +1,22 @@
+packages:
+  "react-signature-canvas": "For electronic signatures on pointage sheets"
+  "@types/react-signature-canvas": "Types for react-signature-canvas"
+  "recharts": "For dashboard financial and activity charts"
+  "date-fns": "For formatting dates in French"
+  "socket.io-client": "For real-time notifications and messages"
+  "lucide-react": "For UI icons"
+  "clsx": "Utility for Tailwind class merging"
+  "tailwind-merge": "Utility for Tailwind class merging"
+
+images:
+  - path: "artifacts/hairou-btp/public/images/hero-bg.png"
+    description: "Abstract dark navy blueprint with subtle teal glowing lines, construction theme, highly professional"
+    aspect_ratio: "16:9"
+  - path: "artifacts/hairou-btp/public/images/logo.png"
+    description: "Minimalist modern logo for a construction company named HAIROU, dark navy and dark green colors, geometric"
+    aspect_ratio: "1:1"
+
+notes:
+  - Using a global fetch interceptor in App.tsx to attach the JWT token to all /api requests
+  - Wouter is used for routing, no nested <a> tags in <Link>
+  - FCFA currency formatting used throughout

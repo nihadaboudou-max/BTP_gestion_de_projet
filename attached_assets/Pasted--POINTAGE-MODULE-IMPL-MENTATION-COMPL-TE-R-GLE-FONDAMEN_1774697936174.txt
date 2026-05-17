@@ -1,0 +1,178 @@
+## POINTAGE MODULE — IMPLÉMENTATION COMPLÈTE
+
+---
+
+## RÈGLE FONDAMENTALE
+- SEULS le Chef de Chantier et l'Admin créent les fiches de pointage
+- L'ouvrier consulte uniquement son historique (lecture seule)
+- Une fiche = Un projet + Une date + Liste des ouvriers présents ce jour
+
+---
+
+## FLUX COMPLET DU POINTAGE
+
+ÉTAPE 1 — Chef ouvre "Nouveau Pointage"
+ÉTAPE 2 — Sélectionne le projet → ouvriers du projet chargés auto
+ÉTAPE 3 — Pour chaque ouvrier: saisit arrivée + signature arrivée
+ÉTAPE 4 — En fin de journée: saisit départ + signature départ
+ÉTAPE 5 — Calcul automatique heures + montant dû
+ÉTAPE 6 — Chef signe la fiche entière → soumission
+ÉTAPE 7 — Admin reçoit notification → valide ou rejette
+ÉTAPE 8 — Ouvriers concernés voient la fiche dans leur historique
+
+---
+
+## INTERFACE CHEF — CRÉATION FICHE DE POINTAGE
+
+### Écran 1: En-tête de la fiche
+┌──────────────────────────────────────────────────┐
+│  NOUVELLE FICHE DE POINTAGE                      │
+│                                                  │
+│  Projet:  [Dropdown — projets assignés au chef]  │
+│  Date:    [Date picker — défaut: aujourd'hui]    │
+│  Chef:    [Auto-rempli: nom du connecté]         │
+│                                                  │
+│  [→ Charger les ouvriers du projet]              │
+└──────────────────────────────────────────────────┘
+
+### Écran 2: Carte par ouvrier (répétée pour chaque ouvrier)
+
+┌──────────────────────────────────────────────────────────────┐
+│  👷 MOUSSA DIOP — Maçon                                      │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │ STATUT:  ● Présent  ○ Absent  ○ Demi-journée        │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                                                              │
+│  ── ARRIVÉE ──────────────────────────────────────────────  │
+│  Heure d'arrivée:  [07 : 30]  ← saisie HH:MM               │
+│  Signature ouvrier à l'arrivée:                              │
+│  ┌─────────────────────────────────┐                        │
+│  │                                 │  ← Canvas signature    │
+│  │   [zone de signature tactile]   │     150×80px           │
+│  │                                 │                        │
+│  └─────────────────────────────────┘                        │
+│  [🗑 Effacer]  [✅ Valider signature arrivée]               │
+│  ✔ Signé le: 14/06/2025 à 07:32                             │
+│                                                              │
+│  ── DÉPART ───────────────────────────────────────────────  │
+│  Heure de départ:  [17 : 00]  ← saisie HH:MM               │
+│  Signature ouvrier au départ:                                │
+│  ┌─────────────────────────────────┐                        │
+│  │                                 │  ← Canvas signature    │
+│  │   [zone de signature tactile]   │     150×80px           │
+│  │                                 │                        │
+│  └─────────────────────────────────┘                        │
+│  [🗑 Effacer]  [✅ Valider signature départ]                │
+│  ✔ Signé le: 14/06/2025 à 17:05                             │
+│                                                              │
+│  ── CALCUL PAIE ──────────────────────────────────────────  │
+│  Mode de paie:  ● Par jour   ○ Par tâche                    │
+│                                                              │
+│  [SI PAR JOUR]                                               │
+│  Tarif journalier:  [10 000] FCFA                           │
+│  Heures travaillées: 9h30  ← calculé auto (départ-arrivée) │
+│  Retard détecté: +30min après 08h00  ← badge orange         │
+│  Heures sup: 1h30 au-delà de 8h  ← badge bleu              │
+│  Montant dû:                                                 │
+│    Présent      → 10 000 FCFA                               │
+│    Demi-journée → 5 000 FCFA                                │
+│    Absent       → 0 FCFA                                    │
+│                                                              │
+│  [SI PAR TÂCHE]                                              │
+│  Tâche: [Dropdown — tâches du projet]                       │
+│  Montant négocié: [______] FCFA                             │
+│  Avancement: [100]%                                          │
+│  Montant dû: calculé auto = montant × (avancement/100)      │
+│                                                              │
+│  Notes: [champ texte libre facultatif]                      │
+│                                                              │
+│  💰 MONTANT DÛ CE JOUR: 10 000 FCFA  ← mis à jour live     │
+└──────────────────────────────────────────────────────────────┘
+
+### Écran 3: Récapitulatif bas de fiche
+
+┌──────────────────────────────────────────────────────────────┐
+│  RÉCAPITULATIF — [Nom Projet] — [Date]                       │
+├─────────────────┬──────┬──────┬───────┬──────────┬──────────┤
+│ Ouvrier         │Arr.  │Dép.  │Heures │Statut    │Montant   │
+├─────────────────┼──────┼──────┼───────┼──────────┼──────────┤
+│ Moussa Diop     │07:30 │17:00 │9h30   │Présent   │10 000    │
+│ Fatou Camara    │08:00 │12:00 │4h00   │Demi-j.   │5 000     │
+│ Ibou Sarr       │07:45 │17:00 │9h15   │Présent   │35 000 *  │
+│ Aminata Fall    │ --   │ --   │ --    │Absent    │0         │
+├─────────────────┴──────┴──────┴───────┴──────────┴──────────┤
+│  * Par tâche                                                 │
+│  TOTAL JOURNÉE:                             50 000 FCFA      │
+│  Ouvriers présents: 3 / 4                                    │
+└──────────────────────────────────────────────────────────────┘
+
+│  SIGNATURE DU CHEF (validation finale de la fiche)           │
+│  ┌───────────────────────────────────────┐                   │
+│  │                                       │  ← Canvas 200×100 │
+│  │   [Chef signe ici pour valider]       │                   │
+│  │                                       │                   │
+│  └───────────────────────────────────────┘                   │
+│  [🗑 Effacer]  [✅ Signer et soumettre la fiche]             │
+
+---
+
+## BASE DE DONNÉES — TABLES POINTAGE
+```sql
+-- Fiche globale (une par jour par projet)
+CREATE TABLE pointage_sheets (
+  id               SERIAL PRIMARY KEY,
+  project_id       INTEGER REFERENCES projects(id) NOT NULL,
+  date             DATE NOT NULL,
+  created_by       INTEGER REFERENCES users(id) NOT NULL,
+  chef_signature   TEXT,           -- base64 PNG signature chef
+  chef_signed_at   TIMESTAMP,
+  status           VARCHAR(20) DEFAULT 'BROUILLON',
+                   -- BROUILLON | SOUMISE | VALIDEE | REJETEE
+  total_amount_due INTEGER DEFAULT 0,
+  admin_comment    TEXT,
+  locked           BOOLEAN DEFAULT false,
+  created_at       TIMESTAMP DEFAULT NOW(),
+  UNIQUE(project_id, date)         -- une seule fiche par projet/jour
+);
+
+-- Entrée par ouvrier (une par ouvrier par fiche)
+CREATE TABLE pointage_entries (
+  id                   SERIAL PRIMARY KEY,
+  sheet_id             INTEGER REFERENCES pointage_sheets(id) ON DELETE CASCADE,
+  worker_id            INTEGER REFERENCES users(id) NOT NULL,
+
+  -- Présence
+  status               VARCHAR(20) DEFAULT 'PRESENT',
+                       -- PRESENT | ABSENT | DEMI_JOURNEE
+
+  -- Arrivée
+  arrival_time         TIME,
+  arrival_signature    TEXT,       -- base64 PNG
+  arrival_signed_at    TIMESTAMP,
+
+  -- Départ
+  departure_time       TIME,
+  departure_signature  TEXT,       -- base64 PNG
+  departure_signed_at  TIMESTAMP,
+
+  -- Calcul
+  hours_worked         DECIMAL(4,2),   -- calculé: départ - arrivée
+  overtime_hours       DECIMAL(3,2) DEFAULT 0,
+
+  -- Paie
+  pay_mode             VARCHAR(10) DEFAULT 'PAR_JOUR',
+                       -- PAR_JOUR | PAR_TACHE
+  daily_rate           INTEGER,         -- FCFA si PAR_JOUR
+  task_id              INTEGER REFERENCES tasks(id), -- si PAR_TACHE
+  task_amount          INTEGER,         -- montant négocié
+  task_progress_pct    INTEGER DEFAULT 100,
+  amount_due           INTEGER DEFAULT 0, -- FCFA calculé auto
+
+  notes                TEXT,
+  created_at           TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## API ENDPOINTS POINTAGE
