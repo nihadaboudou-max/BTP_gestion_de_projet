@@ -9,3 +9,4 @@ export * from "./notifications";
 export * from "./activity";
 export * from "./reclamations";
 export * from "./presenceConfirmations";
+export * from "./payments";

@@ -22,6 +22,7 @@ import Administration from "@/pages/administration";
 import Finance from "@/pages/finance";
 import ProjectDetail from "@/pages/project-detail";
 import Rapports from "@/pages/rapports";
+import Paie from "@/pages/paie";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -111,6 +112,10 @@ function Router() {
 
       <Route path="/rapports">
         {() => <ProtectedRoute component={Rapports} />}
+      </Route>
+
+      <Route path="/paie">
+        {() => <ProtectedRoute component={Paie} />}
       </Route>
 
       <Route component={NotFound} />

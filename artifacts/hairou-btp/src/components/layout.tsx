@@ -17,6 +17,7 @@ import {
   Shield,
   TrendingUp,
   BarChart3,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -49,6 +50,7 @@ export function AppLayout({ children, title }: LayoutProps) {
     { href: "/projets", label: "Projets", icon: HardHat },
     { href: "/taches", label: "Tâches", icon: CheckSquare },
     { href: "/pointage", label: "Pointage", icon: ClipboardList },
+    { href: "/paie", label: "Paie hebdo", icon: Wallet },
     { href: "/personnel", label: "Personnel", icon: Users },
     { href: "/depenses", label: "Dépenses", icon: Receipt },
     { href: "/messages", label: "Messages", icon: MessageSquare },
@@ -62,6 +64,7 @@ export function AppLayout({ children, title }: LayoutProps) {
     { href: "/projets", label: "Projets", icon: HardHat },
     { href: "/taches", label: "Tâches", icon: CheckSquare },
     { href: "/pointage", label: "Pointage", icon: ClipboardList },
+    { href: "/paie", label: "Paie hebdo", icon: Wallet },
     { href: "/personnel", label: "Personnel", icon: Users },
     { href: "/depenses", label: "Dépenses", icon: Receipt },
     { href: "/messages", label: "Messages", icon: MessageSquare },

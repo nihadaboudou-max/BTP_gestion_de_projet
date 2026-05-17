@@ -12,6 +12,7 @@ import notificationsRouter from "./notifications.js";
 import activityRouter from "./activity.js";
 import reclamationsRouter from "./reclamations.js";
 import presenceConfirmationsRouter from "./presenceConfirmations.js";
+import payrollRouter from "./payroll.js";
 
 const router: IRouter = Router();
 
@@ -29,5 +30,6 @@ router.use("/activity", activityRouter);
 router.use("/dashboard", activityRouter);
 router.use("/reclamations", reclamationsRouter);
 router.use("/presence-confirmations", presenceConfirmationsRouter);
+router.use("/payroll", payrollRouter);
 
 export default router;

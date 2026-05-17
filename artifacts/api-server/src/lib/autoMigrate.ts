@@ -27,6 +27,27 @@ const ALTER_STATEMENTS = [
   `ALTER TABLE personnel ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE`,
   `ALTER TABLE personnel ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP`,
   `ALTER TABLE personnel ADD COLUMN IF NOT EXISTS created_via_pointage BOOLEAN NOT NULL DEFAULT FALSE`,
+  // payments : type ENUM + table (création si absent)
+  `DO $$ BEGIN
+     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_method') THEN
+       CREATE TYPE payment_method AS ENUM ('CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK', 'OTHER');
+     END IF;
+   END $$;`,
+  `CREATE TABLE IF NOT EXISTS payments (
+     id SERIAL PRIMARY KEY,
+     personnel_id INTEGER NOT NULL REFERENCES personnel(id),
+     period_start DATE NOT NULL,
+     period_end DATE NOT NULL,
+     amount NUMERIC(15, 2) NOT NULL,
+     payment_date DATE NOT NULL,
+     payment_method payment_method NOT NULL DEFAULT 'CASH',
+     reference TEXT,
+     notes TEXT,
+     paid_by INTEGER NOT NULL REFERENCES users(id),
+     created_at TIMESTAMP NOT NULL DEFAULT NOW()
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_payments_personnel ON payments(personnel_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_payments_period ON payments(period_start, period_end)`,
 ];
 
 export async function autoMigrate() {
