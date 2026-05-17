@@ -25,6 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import SignatureCanvas from "react-signature-canvas";
 import { useAuth } from "@/hooks/use-auth";
 import { WorkerModal, type WorkerData } from "@/components/worker-modal";
+import { PageHeader } from "@/components/page-header";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -461,6 +462,13 @@ export default function PointageDetail() {
     <AppLayout title={`Pointage — ${formatDate(sheet.date)}`}>
       <div className="space-y-6">
 
+        <PageHeader
+          backTo="/pointage"
+          backLabel="Retour aux fiches"
+          title={sheet.projectName || "Projet"}
+          subtitle={`${formatDate(sheet.date)} · ${sheet.chefName}`}
+        />
+
         {/* En-tête de la fiche */}
         <div className="bg-white rounded-2xl border border-border/50 shadow-sm p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -736,7 +744,18 @@ export default function PointageDetail() {
                       {statusOpt?.label}
                     </span>
                     <span className="font-bold text-foreground text-sm">{formatFCFA(amount)}</span>
-                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={ev => { ev.stopPropagation(); setReclamationEntry(entry); }}>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-7 h-7 text-destructive hover:bg-destructive/10"
+                        title="Retirer cet ouvrier de la fiche"
+                        onClick={ev => { ev.stopPropagation(); handleDeleteEntry(entry.id); }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="w-7 h-7" title="Réclamation" onClick={ev => { ev.stopPropagation(); setReclamationEntry(entry); }}>
                       <MessageSquare className="w-4 h-4 text-muted-foreground hover:text-primary" />
                     </Button>
                     {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}

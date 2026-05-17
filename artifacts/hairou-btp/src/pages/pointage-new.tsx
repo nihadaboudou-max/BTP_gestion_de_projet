@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { WorkerModal, type WorkerData } from "@/components/worker-modal";
+import { PageHeader } from "@/components/page-header";
 
 const WEATHER_OPTIONS = [
   { value: "ENSOLEILLE", label: "Ensoleillé ☀️" },
@@ -82,7 +83,9 @@ interface WorkerState {
   personnelId: number; name: string; trade: string;
   status: "PRESENT" | "ABSENT" | "DEMI_JOURNEE";
   arrivalTime: string; arrivalSigned: boolean; arrivalSignedAt: string | null;
+  arrivalSignatureData: string | null;   // dataURL persistant
   departureTime: string; departureSigned: boolean; departureSignedAt: string | null;
+  departureSignatureData: string | null; // dataURL persistant
   payMode: "PAR_JOUR" | "PAR_TACHE";
   dailyWage: number; taskId: number | null; taskAmount: number; taskProgressPct: number;
   notes: string; expanded: boolean;
@@ -122,6 +125,7 @@ export default function PointageNew() {
   const [isSaving, setIsSaving] = useState(false);
   const [chefSigned, setChefSigned] = useState(false);
   const [chefSignedAt, setChefSignedAt] = useState<string | null>(null);
+  const [chefSignatureData, setChefSignatureData] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   const padRefs = useRef<Record<string, SignaturePad>>({});
@@ -156,17 +160,17 @@ export default function PointageNew() {
       setPersonnel(list);
       setWorkers(list.map(p => ({
         personnelId: p.id, name: p.name, trade: p.trade || "",
-        status: "PRESENT", arrivalTime: "07:30", arrivalSigned: false, arrivalSignedAt: null,
-        departureTime: "17:00", departureSigned: false, departureSignedAt: null,
+        status: "PRESENT", arrivalTime: "07:30", arrivalSigned: false, arrivalSignedAt: null, arrivalSignatureData: null,
+        departureTime: "17:00", departureSigned: false, departureSignedAt: null, departureSignatureData: null,
         payMode: "PAR_JOUR", dailyWage: parseFloat(String(p.dailyWage || 0)),
         taskId: null, taskAmount: 0, taskProgressPct: 100, notes: "", expanded: false,
       })));
     }).finally(() => setLoadingWorkers(false));
   }, [projectId]);
 
-  // ── Init pads ─────────────────────────────────────────────────────────────
+  // ── Init pads + restauration des signatures sauvegardées ────────────────
   useEffect(() => {
-    const initPad = (key: string, opts: object) => {
+    const initPad = (key: string, opts: object, savedDataUrl?: string | null) => {
       const canvas = canvasRefs.current[key];
       if (!canvas) return;
       if (padRefs.current[key] && padCanvasTracker.current[key] !== canvas) {
@@ -182,13 +186,17 @@ export default function PointageNew() {
           padCanvasTracker.current[key] = canvas;
         } catch {}
       }
+      // RESTAURATION : si on avait déjà une signature sauvée, la redessiner
+      if (savedDataUrl && padRefs.current[key] && padRefs.current[key].isEmpty()) {
+        try { padRefs.current[key].fromDataURL(savedDataUrl); } catch {}
+      }
     };
     const timer = setTimeout(() => {
       workers.filter(w => w.expanded).forEach(w => {
-        initPad(`arr_${w.personnelId}`, { penColor: "rgb(15,45,76)", minWidth: 1, maxWidth: 2.5 });
-        initPad(`dep_${w.personnelId}`, { penColor: "rgb(20,83,45)", minWidth: 1, maxWidth: 2.5 });
+        initPad(`arr_${w.personnelId}`, { penColor: "rgb(15,45,76)", minWidth: 1, maxWidth: 2.5 }, w.arrivalSignatureData);
+        initPad(`dep_${w.personnelId}`, { penColor: "rgb(20,83,45)", minWidth: 1, maxWidth: 2.5 }, w.departureSignatureData);
       });
-      initPad("chef", { penColor: "rgb(15,45,76)", minWidth: 1.5, maxWidth: 3 });
+      initPad("chef", { penColor: "rgb(15,45,76)", minWidth: 1.5, maxWidth: 3 }, chefSignatureData);
     }, 80);
     return () => clearTimeout(timer);
   }, [workers.map(w => `${w.personnelId}-${w.expanded}`).join(",")]);
@@ -203,6 +211,7 @@ export default function PointageNew() {
     onSuccess(pad.toDataURL("image/png"), new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
   };
 
+  // Clear the pad — l'appelant doit aussi reset le state correspondant
   const clearSig = (key: string) => padRefs.current[key]?.clear();
 
   const setAllStatus = (status: WorkerState["status"]) =>
@@ -246,8 +255,8 @@ export default function PointageNew() {
       setPersonnel(prev => [...prev, newP]);
       setWorkers(prev => [...prev, {
         personnelId: created.id, name: created.name, trade: created.trade || "",
-        status: "PRESENT", arrivalTime: "07:30", arrivalSigned: false, arrivalSignedAt: null,
-        departureTime: "17:00", departureSigned: false, departureSignedAt: null,
+        status: "PRESENT", arrivalTime: "07:30", arrivalSigned: false, arrivalSignedAt: null, arrivalSignatureData: null,
+        departureTime: "17:00", departureSigned: false, departureSignedAt: null, departureSignatureData: null,
         payMode: "PAR_JOUR", dailyWage: parseFloat(String(created.dailyWage || 0)),
         taskId: null, taskAmount: 0, taskProgressPct: 100, notes: "", expanded: false,
       }]);
@@ -268,8 +277,11 @@ export default function PointageNew() {
     if (!projectId || !date) { toast({ title: "Choisissez un projet et une date", variant: "destructive" }); return; }
     if (workers.length === 0) { toast({ title: "Aucun ouvrier sélectionné", variant: "destructive" }); return; }
 
+    // Récupère le dataURL du pad chef si toujours visible, sinon utilise le state
     const chefPad = padRefs.current["chef"];
-    const chefSigData = chefPad && !chefPad.isEmpty() ? chefPad.toDataURL("image/png") : null;
+    const chefSigData = (chefPad && !chefPad.isEmpty())
+      ? chefPad.toDataURL("image/png")
+      : chefSignatureData;
 
     setIsSaving(true);
     try {
@@ -278,13 +290,17 @@ export default function PointageNew() {
         const depPad = padRefs.current[`dep_${w.personnelId}`];
         const hours = w.status !== "ABSENT" ? calcHoursNum(w.arrivalTime, w.departureTime) : null;
         const overtime = hours && hours > 8 ? hours - 8 : 0;
+        // Lit la signature depuis le pad si dispo et non vide, sinon utilise
+        // le dataURL persistant stocké dans le state (évite la perte au collapse)
+        const arrSig = (arrPad && !arrPad.isEmpty()) ? arrPad.toDataURL("image/png") : w.arrivalSignatureData;
+        const depSig = (depPad && !depPad.isEmpty()) ? depPad.toDataURL("image/png") : w.departureSignatureData;
         return {
           personnelId: w.personnelId, status: w.status,
           arrivalTime: w.status !== "ABSENT" ? w.arrivalTime : null,
-          arrivalSignature: w.status !== "ABSENT" && arrPad && !arrPad.isEmpty() ? arrPad.toDataURL("image/png") : null,
+          arrivalSignature: w.status !== "ABSENT" ? arrSig : null,
           arrivalSignedAt: w.arrivalSignedAt ? new Date().toISOString() : null,
           departureTime: w.status !== "ABSENT" ? w.departureTime : null,
-          departureSignature: w.status !== "ABSENT" && depPad && !depPad.isEmpty() ? depPad.toDataURL("image/png") : null,
+          departureSignature: w.status !== "ABSENT" ? depSig : null,
           departureSignedAt: w.departureSignedAt ? new Date().toISOString() : null,
           hoursWorked: hours ?? null, overtimeHours: overtime, payMode: w.payMode,
           dailyWage: w.payMode === "PAR_JOUR" ? w.dailyWage : null,
@@ -329,9 +345,12 @@ export default function PointageNew() {
     <AppLayout title="Nouveau Pointage">
       <div className="max-w-4xl mx-auto space-y-5 pb-24">
 
-        <Button variant="ghost" onClick={() => navigate("/pointage")} className="text-muted-foreground -ml-2">
-          <ArrowLeft className="w-4 h-4 mr-1.5" /> Retour aux fiches
-        </Button>
+        <PageHeader
+          backTo="/pointage"
+          backLabel="Retour aux fiches"
+          title="Nouveau pointage"
+          subtitle="Étapes : chantier → ouvriers → récap → signature"
+        />
 
         {/* Étape 1 */}
         <div className="bg-white rounded-2xl border border-border/50 shadow-sm p-5">
@@ -442,8 +461,8 @@ export default function PointageNew() {
                       if (e.target.checked) {
                         setWorkers(prev => [...prev, {
                           personnelId: p.id, name: p.name, trade: p.trade || "",
-                          status: "PRESENT", arrivalTime: "07:30", arrivalSigned: false, arrivalSignedAt: null,
-                          departureTime: "17:00", departureSigned: false, departureSignedAt: null,
+                          status: "PRESENT", arrivalTime: "07:30", arrivalSigned: false, arrivalSignedAt: null, arrivalSignatureData: null,
+                          departureTime: "17:00", departureSigned: false, departureSignedAt: null, departureSignatureData: null,
                           payMode: "PAR_JOUR", dailyWage: parseFloat(String(p.dailyWage || 0)),
                           taskId: null, taskAmount: 0, taskProgressPct: 100, notes: "", expanded: false,
                         }]);
@@ -570,10 +589,10 @@ export default function PointageNew() {
               <canvas ref={el => { canvasRefs.current["chef"] = el; }} className="w-full touch-none cursor-crosshair block" style={{ touchAction: "none", height: "120px" }} />
             </div>
             <div className="flex items-center gap-3 mt-3">
-              <Button size="sm" variant="outline" onClick={() => { clearSig("chef"); setChefSigned(false); setChefSignedAt(null); }} className="rounded-xl h-8 text-xs text-muted-foreground">
+              <Button size="sm" variant="outline" onClick={() => { clearSig("chef"); setChefSigned(false); setChefSignedAt(null); setChefSignatureData(null); }} className="rounded-xl h-8 text-xs text-muted-foreground">
                 <Trash2 className="w-3 h-3 mr-1" /> Effacer
               </Button>
-              <Button size="sm" onClick={() => validateSig("chef", (_, ts) => { setChefSigned(true); setChefSignedAt(ts); })} className="rounded-xl h-8 text-xs bg-primary text-white">
+              <Button size="sm" onClick={() => validateSig("chef", (dataUrl, ts) => { setChefSigned(true); setChefSignedAt(ts); setChefSignatureData(dataUrl); })} className="rounded-xl h-8 text-xs bg-primary text-white">
                 <CheckCircle2 className="w-3 h-3 mr-1" /> Valider ma signature
               </Button>
               {chefSigned && <span className="text-xs text-green-700 font-medium flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Signé à {chefSignedAt}</span>}
@@ -724,8 +743,8 @@ function WorkerRow({ worker: w, tasks, onChange, onToggle, canvasRefs, padRefs, 
                   <canvas ref={el => { canvasRefs.current[arrKey] = el; }} className="w-full cursor-crosshair touch-none block" style={{ touchAction: "none", height: "85px" }} />
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <Button size="sm" variant="outline" onClick={() => { onClearSig(arrKey); onChange("arrivalSigned", false); onChange("arrivalSignedAt", null); }} className="h-7 text-xs rounded-lg px-2"><Trash2 className="w-3 h-3" /></Button>
-                  <Button size="sm" onClick={() => onValidateSig(arrKey, (_, ts) => { onChange("arrivalSigned", true); onChange("arrivalSignedAt", ts); })} className="h-7 text-xs rounded-lg px-2.5 bg-primary text-white"><CheckCircle2 className="w-3 h-3 mr-1" />OK</Button>
+                  <Button size="sm" variant="outline" onClick={() => { onClearSig(arrKey); onChange("arrivalSigned", false); onChange("arrivalSignedAt", null); onChange("arrivalSignatureData", null); }} className="h-7 text-xs rounded-lg px-2"><Trash2 className="w-3 h-3" /></Button>
+                  <Button size="sm" onClick={() => onValidateSig(arrKey, (dataUrl, ts) => { onChange("arrivalSigned", true); onChange("arrivalSignedAt", ts); onChange("arrivalSignatureData", dataUrl); })} className="h-7 text-xs rounded-lg px-2.5 bg-primary text-white"><CheckCircle2 className="w-3 h-3 mr-1" />OK</Button>
                   {w.arrivalSigned && <span className="text-xs text-green-700 font-medium">✓ {w.arrivalSignedAt}</span>}
                 </div>
               </div>
@@ -735,8 +754,8 @@ function WorkerRow({ worker: w, tasks, onChange, onToggle, canvasRefs, padRefs, 
                   <canvas ref={el => { canvasRefs.current[depKey] = el; }} className="w-full cursor-crosshair touch-none block" style={{ touchAction: "none", height: "85px" }} />
                 </div>
                 <div className="flex items-center gap-2 mt-1.5">
-                  <Button size="sm" variant="outline" onClick={() => { onClearSig(depKey); onChange("departureSigned", false); onChange("departureSignedAt", null); }} className="h-7 text-xs rounded-lg px-2"><Trash2 className="w-3 h-3" /></Button>
-                  <Button size="sm" onClick={() => onValidateSig(depKey, (_, ts) => { onChange("departureSigned", true); onChange("departureSignedAt", ts); })} className="h-7 text-xs rounded-lg px-2.5 bg-accent text-white"><CheckCircle2 className="w-3 h-3 mr-1" />OK</Button>
+                  <Button size="sm" variant="outline" onClick={() => { onClearSig(depKey); onChange("departureSigned", false); onChange("departureSignedAt", null); onChange("departureSignatureData", null); }} className="h-7 text-xs rounded-lg px-2"><Trash2 className="w-3 h-3" /></Button>
+                  <Button size="sm" onClick={() => onValidateSig(depKey, (dataUrl, ts) => { onChange("departureSigned", true); onChange("departureSignedAt", ts); onChange("departureSignatureData", dataUrl); })} className="h-7 text-xs rounded-lg px-2.5 bg-accent text-white"><CheckCircle2 className="w-3 h-3 mr-1" />OK</Button>
                   {w.departureSigned && <span className="text-xs text-green-700 font-medium">✓ {w.departureSignedAt}</span>}
                 </div>
               </div>

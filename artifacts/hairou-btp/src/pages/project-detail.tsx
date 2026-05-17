@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { PageHeader } from "@/components/page-header";
 
 const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
 
@@ -191,10 +192,12 @@ export default function ProjectDetail() {
     <AppLayout title={project.name}>
       <div className="space-y-5 pb-10 max-w-5xl mx-auto">
 
-        {/* Back */}
-        <Button variant="ghost" onClick={() => navigate("/projets")} className="text-muted-foreground -ml-2">
-          <ArrowLeft className="w-4 h-4 mr-1.5" /> Retour aux projets
-        </Button>
+        <PageHeader
+          backTo="/projets"
+          backLabel="Retour aux projets"
+          title={project.name}
+          subtitle={project.clientName ? `Client : ${project.clientName}` : undefined}
+        />
 
         {/* Header */}
         <div className="bg-white rounded-2xl border border-border/50 shadow-sm p-6">
