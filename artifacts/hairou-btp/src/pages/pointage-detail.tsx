@@ -25,6 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import SignatureCanvas from "react-signature-canvas";
 import { useAuth } from "@/hooks/use-auth";
 import { WorkerModal, type WorkerData } from "@/components/worker-modal";
+import { WorkerSelectorModal } from "@/components/worker-selector-modal";
 import { PageHeader } from "@/components/page-header";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -131,7 +132,8 @@ export default function PointageDetail() {
   const [approvalType, setApprovalType] = useState<"approve" | "reject">("approve");
   const [reclamationEntry, setReclamationEntry] = useState<any>(null);
   const [expandedEntries, setExpandedEntries] = useState<Set<number>>(new Set());
-  const [isAddWorkerOpen, setIsAddWorkerOpen] = useState(false);
+  const [isAddWorkerOpen, setIsAddWorkerOpen] = useState(false);        // Modal création (WorkerModal)
+  const [isSelectorOpen, setIsSelectorOpen] = useState(false);          // Sélecteur d'ouvrier existant
   const [isAddingWorker, setIsAddingWorker] = useState(false);
   const [entrySigningFor, setEntrySigningFor] = useState<{ entryId: number; type: "arrival" | "departure" } | null>(null);
   const [editMode, setEditMode] = useState(false);
@@ -359,7 +361,7 @@ export default function PointageDetail() {
     });
   };
 
-  // Ajout d'un ouvrier en cours d'édition de la fiche (auto-création personnel si nouveau)
+  // Ajout d'un NOUVEL ouvrier (création + ajout à la fiche)
   const handleAddWorker = async (data: WorkerData) => {
     setIsAddingWorker(true);
     try {
@@ -374,10 +376,32 @@ export default function PointageDetail() {
       setIsAddWorkerOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/pointage", id] });
       queryClient.invalidateQueries({ queryKey: ["/api/personnel"] });
-      toast({ title: "Ouvrier ajouté à la fiche", description: `${data.name} a été ajouté et enregistré dans le personnel.` });
+      toast({ title: "Ouvrier ajouté à la fiche", description: `${data.name} a été créé et ajouté.` });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
       throw err;
+    } finally {
+      setIsAddingWorker(false);
+    }
+  };
+
+  // Ajout d'un ouvrier EXISTANT (sélectionné dans la liste)
+  const handleSelectExistingWorker = async (worker: { id: number; name: string; trade: string; phone?: string | null; dailyWage?: number }) => {
+    setIsAddingWorker(true);
+    try {
+      await apiFetch(`/api/pointage/${id}/entries`, {
+        method: "POST",
+        body: JSON.stringify({
+          personnelId: worker.id,
+          status: "PRESENT",
+          dailyWage: worker.dailyWage,
+        }),
+      });
+      setIsSelectorOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/pointage", id] });
+      toast({ title: "Ouvrier ajouté à la fiche", description: `${worker.name} a été pointé.` });
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
     } finally {
       setIsAddingWorker(false);
     }
@@ -633,7 +657,7 @@ export default function PointageDetail() {
               )}
 
               {canEdit && editMode && (
-                <Button onClick={() => setIsAddWorkerOpen(true)} variant="outline" className="rounded-xl border-secondary text-secondary hover:bg-secondary/5">
+                <Button onClick={() => setIsSelectorOpen(true)} variant="outline" className="rounded-xl border-secondary text-secondary hover:bg-secondary/5">
                   <UserPlus className="w-4 h-4 mr-2" /> Ajouter un ouvrier
                 </Button>
               )}
@@ -691,7 +715,7 @@ export default function PointageDetail() {
             <div className="bg-white rounded-2xl border border-dashed border-border p-10 text-center">
               <p className="text-muted-foreground">Aucun ouvrier sur cette fiche.</p>
               {canEdit && (
-                <Button onClick={() => setIsAddWorkerOpen(true)} className="mt-4 rounded-xl bg-secondary text-white">
+                <Button onClick={() => setIsSelectorOpen(true)} className="mt-4 rounded-xl bg-secondary text-white">
                   <UserPlus className="w-4 h-4 mr-2" /> Ajouter le premier ouvrier
                 </Button>
               )}
@@ -904,7 +928,20 @@ export default function PointageDetail() {
         </div>
       </div>
 
-      {/* Modal : Ajouter un ouvrier */}
+      {/* Modal : Sélecteur d'ouvrier existant (étape 1 de l'ajout) */}
+      <WorkerSelectorModal
+        open={isSelectorOpen}
+        onOpenChange={setIsSelectorOpen}
+        excludeIds={(sheet?.entries || []).map((e: any) => e.personnelId)}
+        onSelect={handleSelectExistingWorker}
+        onCreateNew={() => {
+          setIsSelectorOpen(false);
+          setIsAddWorkerOpen(true);
+        }}
+        isAdding={isAddingWorker}
+      />
+
+      {/* Modal : Créer un nouvel ouvrier (étape 2 si pas trouvé) */}
       <WorkerModal
         open={isAddWorkerOpen}
         onOpenChange={setIsAddWorkerOpen}

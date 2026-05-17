@@ -73,11 +73,18 @@ router.get("/week", authenticate, async (req: AuthRequest, res) => {
         personnelName: personnelTable.name,
         personnelTrade: personnelTable.trade,
         personnelPhone: personnelTable.phone,
+        personnelIdNumber: personnelTable.idNumber,
         status: pointageEntriesTable.status,
         hoursWorked: pointageEntriesTable.hoursWorked,
+        overtimeHours: pointageEntriesTable.overtimeHours,
+        arrivalTime: pointageEntriesTable.arrivalTime,
+        departureTime: pointageEntriesTable.departureTime,
+        arrivalSignature: pointageEntriesTable.arrivalSignature,
+        departureSignature: pointageEntriesTable.departureSignature,
         amountDue: pointageEntriesTable.amountDue,
         sheetDate: pointageSheetsTable.date,
         sheetId: pointageSheetsTable.id,
+        entryId: pointageEntriesTable.id,
         projectId: pointageSheetsTable.projectId,
         projectName: projectsTable.name,
       })
@@ -109,11 +116,15 @@ router.get("/week", authenticate, async (req: AuthRequest, res) => {
           name: e.personnelName,
           trade: e.personnelTrade,
           phone: e.personnelPhone,
+          idNumber: e.personnelIdNumber,
           daysWorked: 0,
           totalHours: 0,
+          totalOvertimeHours: 0,
           totalAmount: 0,
           alreadyPaid: 0,
           balance: 0,
+          signedCount: 0,
+          totalEntries: 0,
           breakdown: [],
           paymentIds: [],
         });
@@ -122,16 +133,28 @@ router.get("/week", authenticate, async (req: AuthRequest, res) => {
       const status = e.status;
       const isPaidDay = status !== "ABSENT";
       const dayCount = status === "DEMI_JOURNEE" ? 0.5 : (isPaidDay ? 1 : 0);
+      const overtime = parseFloat((e.overtimeHours as string | null) || "0");
+      const hasArrSig = !!e.arrivalSignature;
+      const hasDepSig = !!e.departureSignature;
       w.daysWorked += dayCount;
       w.totalHours += parseFloat((e.hoursWorked as string | null) || "0");
+      w.totalOvertimeHours += overtime;
       w.totalAmount += parseFloat((e.amountDue as string | null) || "0");
+      w.totalEntries += 1;
+      if (hasArrSig || hasDepSig) w.signedCount += 1;
       w.breakdown.push({
         date: e.sheetDate,
         sheetId: e.sheetId,
+        entryId: e.entryId,
         projectId: e.projectId,
         projectName: e.projectName,
         status,
         hours: parseFloat((e.hoursWorked as string | null) || "0"),
+        overtimeHours: overtime,
+        arrivalTime: e.arrivalTime,
+        departureTime: e.departureTime,
+        arrivalSigned: hasArrSig,
+        departureSigned: hasDepSig,
         amount: parseFloat((e.amountDue as string | null) || "0"),
       });
     }
@@ -163,6 +186,9 @@ router.get("/week", authenticate, async (req: AuthRequest, res) => {
         totalDue: result.reduce((s, w) => s + w.totalAmount, 0),
         totalPaid: result.reduce((s, w) => s + w.alreadyPaid, 0),
         totalBalance: result.reduce((s, w) => s + w.balance, 0),
+        totalHours: result.reduce((s, w) => s + w.totalHours, 0),
+        totalOvertimeHours: result.reduce((s, w) => s + w.totalOvertimeHours, 0),
+        totalDays: result.reduce((s, w) => s + w.daysWorked, 0),
         workerCount: result.length,
       },
     });

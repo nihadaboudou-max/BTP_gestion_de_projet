@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Wallet, Calendar, ChevronLeft, ChevronRight, Users, DollarSign, Loader2,
   FileDown, CheckCircle2, Banknote, Smartphone, CreditCard, Building, Receipt,
-  TrendingUp, TrendingDown, History,
+  TrendingUp, TrendingDown, History, ChevronDown, ChevronUp, Clock, Phone, IdCard, Zap,
 } from "lucide-react";
 
 const BACKEND = import.meta.env.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
@@ -91,6 +91,7 @@ export default function Paie() {
   const [weekStart, setWeekStart] = useState<Date>(getMonday(new Date()));
   const [payWorker, setPayWorker] = useState<any | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [expandedWorkers, setExpandedWorkers] = useState<Set<number>>(new Set());
 
   const weekEnd = addDays(weekStart, 6);
 
@@ -112,10 +113,15 @@ export default function Paie() {
 
   const handleExportCSV = () => {
     const rows: any[][] = [
-      ["Ouvrier", "Métier", "Jours travaillés", "Heures totales", "Montant dû (FCFA)", "Déjà payé (FCFA)", "Reste à payer (FCFA)"],
-      ...workers.map(w => [w.name, w.trade, w.daysWorked, w.totalHours.toFixed(2), w.totalAmount, w.alreadyPaid, w.balance]),
+      ["Ouvrier", "Métier", "Téléphone", "CNI", "Jours", "Heures", "H. sup", "Montant dû (FCFA)", "Déjà payé (FCFA)", "Reste à payer (FCFA)"],
+      ...workers.map(w => [
+        w.name, w.trade, w.phone || "", w.idNumber || "",
+        w.daysWorked, w.totalHours.toFixed(2), (w.totalOvertimeHours || 0).toFixed(2),
+        w.totalAmount, w.alreadyPaid, w.balance,
+      ]),
       [],
-      ["TOTAUX", "", "", "", summary.totalDue, summary.totalPaid, summary.totalBalance],
+      ["TOTAUX", "", "", "", summary.totalDays, (summary.totalHours || 0).toFixed(2), (summary.totalOvertimeHours || 0).toFixed(2),
+        summary.totalDue, summary.totalPaid, summary.totalBalance],
     ];
     const csv = rows.map(r => r.map(c => {
       const s = String(c ?? "");
@@ -249,60 +255,112 @@ export default function Paie() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/30 text-muted-foreground text-xs uppercase font-semibold">
                   <tr>
-                    <th className="px-4 py-3 text-left">Ouvrier</th>
-                    <th className="px-4 py-3 text-center">Jours</th>
-                    <th className="px-4 py-3 text-center">Heures</th>
-                    <th className="px-4 py-3 text-right">Montant dû</th>
-                    <th className="px-4 py-3 text-right">Déjà payé</th>
-                    <th className="px-4 py-3 text-right">Solde</th>
-                    <th className="px-4 py-3 text-center print:hidden">Action</th>
+                    <th className="px-3 py-3 text-left w-8"></th>
+                    <th className="px-3 py-3 text-left">Ouvrier</th>
+                    <th className="px-3 py-3 text-left hidden md:table-cell">Téléphone</th>
+                    <th className="px-3 py-3 text-center">Jours</th>
+                    <th className="px-3 py-3 text-center">Heures</th>
+                    <th className="px-3 py-3 text-center">H. sup</th>
+                    <th className="px-3 py-3 text-right">Montant dû</th>
+                    <th className="px-3 py-3 text-right">Déjà payé</th>
+                    <th className="px-3 py-3 text-right">Solde</th>
+                    <th className="px-3 py-3 text-center print:hidden">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30">
-                  {workers.map((w: any) => (
-                    <tr key={w.personnelId} className="hover:bg-muted/10">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                            {w.name.substring(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-foreground">{w.name}</p>
-                            <p className="text-[11px] text-muted-foreground">{w.trade}{w.phone ? ` · ${w.phone}` : ""}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center font-medium">{w.daysWorked}</td>
-                      <td className="px-4 py-3 text-center">{w.totalHours.toFixed(1)}h</td>
-                      <td className="px-4 py-3 text-right font-semibold text-amber-700">{formatFCFA(w.totalAmount)}</td>
-                      <td className="px-4 py-3 text-right text-green-700">{formatFCFA(w.alreadyPaid)}</td>
-                      <td className={`px-4 py-3 text-right font-bold ${w.balance > 0 ? 'text-red-700' : 'text-green-700'}`}>
-                        {formatFCFA(w.balance)}
-                      </td>
-                      <td className="px-4 py-3 text-center print:hidden">
-                        {w.balance > 0 ? (
-                          <Button
-                            size="sm"
-                            onClick={() => setPayWorker({ ...w, periodStart: toISO(weekStart), periodEnd: toISO(weekEnd) })}
-                            className="rounded-xl bg-secondary hover:bg-secondary/90 text-white text-xs"
-                          >
-                            <Banknote className="w-3.5 h-3.5 mr-1" /> Payer
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-green-700 font-medium flex items-center gap-1 justify-center">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Soldé
-                          </span>
+                  {workers.map((w: any) => {
+                    const isExpanded = expandedWorkers.has(w.personnelId);
+                    return (
+                      <>
+                        <tr
+                          key={w.personnelId}
+                          className="hover:bg-muted/10 cursor-pointer"
+                          onClick={() => setExpandedWorkers(prev => {
+                            const next = new Set(prev);
+                            if (next.has(w.personnelId)) next.delete(w.personnelId); else next.add(w.personnelId);
+                            return next;
+                          })}
+                        >
+                          <td className="px-3 py-3 text-muted-foreground">
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                                {w.name.substring(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-foreground">{w.name}</p>
+                                <p className="text-[11px] text-muted-foreground">{w.trade}</p>
+                                {/* Phone visible mobile (table cell réservée desktop) */}
+                                {w.phone && (
+                                  <p className="text-[11px] text-muted-foreground md:hidden flex items-center gap-1">
+                                    <Phone className="w-2.5 h-2.5" /> {w.phone}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 hidden md:table-cell text-muted-foreground">
+                            {w.phone ? (
+                              <span className="inline-flex items-center gap-1.5 text-foreground font-medium">
+                                <Phone className="w-3 h-3 text-muted-foreground" />
+                                {w.phone}
+                              </span>
+                            ) : <span className="text-muted-foreground/60">—</span>}
+                          </td>
+                          <td className="px-3 py-3 text-center font-medium">{w.daysWorked}</td>
+                          <td className="px-3 py-3 text-center">{w.totalHours.toFixed(1)}h</td>
+                          <td className="px-3 py-3 text-center">
+                            {w.totalOvertimeHours > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-purple-700 font-semibold">
+                                <Zap className="w-3 h-3" /> {w.totalOvertimeHours.toFixed(1)}h
+                              </span>
+                            ) : <span className="text-muted-foreground/60">—</span>}
+                          </td>
+                          <td className="px-3 py-3 text-right font-semibold text-amber-700">{formatFCFA(w.totalAmount)}</td>
+                          <td className="px-3 py-3 text-right text-green-700">{formatFCFA(w.alreadyPaid)}</td>
+                          <td className={`px-3 py-3 text-right font-bold ${w.balance > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                            {formatFCFA(w.balance)}
+                          </td>
+                          <td className="px-3 py-3 text-center print:hidden" onClick={ev => ev.stopPropagation()}>
+                            {w.balance > 0 ? (
+                              <Button
+                                size="sm"
+                                onClick={() => setPayWorker({ ...w, periodStart: toISO(weekStart), periodEnd: toISO(weekEnd) })}
+                                className="rounded-xl bg-secondary hover:bg-secondary/90 text-white text-xs"
+                              >
+                                <Banknote className="w-3.5 h-3.5 mr-1" /> Payer
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-green-700 font-medium flex items-center gap-1 justify-center">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Soldé
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+
+                        {/* Détail journée par journée */}
+                        {isExpanded && (
+                          <tr className="bg-muted/10">
+                            <td colSpan={10} className="px-6 py-4">
+                              <WorkerDailyBreakdown worker={w} />
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                    </tr>
-                  ))}
+                      </>
+                    );
+                  })}
                 </tbody>
                 <tfoot className="bg-primary/5 font-bold">
                   <tr>
-                    <td className="px-4 py-3" colSpan={3}>TOTAUX</td>
-                    <td className="px-4 py-3 text-right">{formatFCFA(summary.totalDue)}</td>
-                    <td className="px-4 py-3 text-right text-green-700">{formatFCFA(summary.totalPaid)}</td>
-                    <td className="px-4 py-3 text-right text-red-700">{formatFCFA(summary.totalBalance)}</td>
+                    <td colSpan={3} className="px-3 py-3">TOTAUX ({summary.workerCount} ouvriers)</td>
+                    <td className="px-3 py-3 text-center">{summary.totalDays}</td>
+                    <td className="px-3 py-3 text-center">{(summary.totalHours || 0).toFixed(1)}h</td>
+                    <td className="px-3 py-3 text-center text-purple-700">{(summary.totalOvertimeHours || 0).toFixed(1)}h</td>
+                    <td className="px-3 py-3 text-right">{formatFCFA(summary.totalDue)}</td>
+                    <td className="px-3 py-3 text-right text-green-700">{formatFCFA(summary.totalPaid)}</td>
+                    <td className="px-3 py-3 text-right text-red-700">{formatFCFA(summary.totalBalance)}</td>
                     <td className="print:hidden"></td>
                   </tr>
                 </tfoot>
@@ -462,6 +520,118 @@ function PaymentModal({ worker, onClose, onSuccess }: { worker: any; onClose: ()
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── WorkerDailyBreakdown ─────────────────────────────────────────────────────
+// Détail jour par jour pour un ouvrier sur la semaine sélectionnée
+
+function WorkerDailyBreakdown({ worker }: { worker: any }) {
+  const STATUS_LABEL: Record<string, { label: string; color: string }> = {
+    PRESENT:      { label: "Présent",   color: "bg-green-100 text-green-700" },
+    ABSENT:       { label: "Absent",    color: "bg-red-100 text-red-600" },
+    DEMI_JOURNEE: { label: "Demi-j.",   color: "bg-yellow-100 text-yellow-700" },
+    HEURE_SUP:    { label: "H. Sup.",   color: "bg-purple-100 text-purple-700" },
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Bandeau identité */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground border-b border-border/30 pb-2">
+        <span className="font-bold text-foreground">{worker.name}</span>
+        {worker.phone && <span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" /> {worker.phone}</span>}
+        {worker.idNumber && <span className="inline-flex items-center gap-1"><IdCard className="w-3 h-3" /> CNI : {worker.idNumber}</span>}
+        <span className="inline-flex items-center gap-1">
+          <CheckCircle2 className="w-3 h-3 text-green-600" /> {worker.signedCount}/{worker.totalEntries} signé(s)
+        </span>
+      </div>
+
+      {/* Tableau journalier */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-muted-foreground">
+            <tr className="border-b border-border/30">
+              <th className="px-2 py-1.5 text-left">Date</th>
+              <th className="px-2 py-1.5 text-left">Chantier</th>
+              <th className="px-2 py-1.5 text-center">Statut</th>
+              <th className="px-2 py-1.5 text-center">Arrivée</th>
+              <th className="px-2 py-1.5 text-center">Départ</th>
+              <th className="px-2 py-1.5 text-center">Heures</th>
+              <th className="px-2 py-1.5 text-center">H. sup</th>
+              <th className="px-2 py-1.5 text-center">Sign.</th>
+              <th className="px-2 py-1.5 text-right">Montant</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/20">
+            {(worker.breakdown || []).map((d: any, idx: number) => {
+              const st = STATUS_LABEL[d.status] || { label: d.status, color: "bg-gray-100 text-gray-700" };
+              return (
+                <tr key={idx} className="hover:bg-white">
+                  <td className="px-2 py-1.5 font-medium whitespace-nowrap">
+                    {new Date(d.date).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" })}
+                  </td>
+                  <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[160px]">{d.projectName || `#${d.projectId}`}</td>
+                  <td className="px-2 py-1.5 text-center">
+                    <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${st.color}`}>
+                      {st.label}
+                    </span>
+                  </td>
+                  <td className="px-2 py-1.5 text-center text-muted-foreground">
+                    {d.arrivalTime ? <span className="inline-flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{d.arrivalTime}</span> : "—"}
+                  </td>
+                  <td className="px-2 py-1.5 text-center text-muted-foreground">
+                    {d.departureTime ? <span className="inline-flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{d.departureTime}</span> : "—"}
+                  </td>
+                  <td className="px-2 py-1.5 text-center">{d.hours > 0 ? `${d.hours.toFixed(1)}h` : "—"}</td>
+                  <td className="px-2 py-1.5 text-center">
+                    {d.overtimeHours > 0 ? (
+                      <span className="inline-flex items-center gap-0.5 text-purple-700 font-semibold">
+                        <Zap className="w-2.5 h-2.5" />{d.overtimeHours.toFixed(1)}h
+                      </span>
+                    ) : "—"}
+                  </td>
+                  <td className="px-2 py-1.5 text-center">
+                    <div className="inline-flex items-center gap-1">
+                      <span title="Arrivée" className={`w-2 h-2 rounded-full ${d.arrivalSigned ? "bg-green-500" : "bg-gray-300"}`} />
+                      <span title="Départ" className={`w-2 h-2 rounded-full ${d.departureSigned ? "bg-green-500" : "bg-gray-300"}`} />
+                    </div>
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-semibold">{formatFCFA(d.amount)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Paiements déjà effectués */}
+      {(worker.paymentIds || []).length > 0 && (
+        <div className="border-t border-border/30 pt-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            Paiements effectués
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {worker.paymentIds.map((p: any) => {
+              const m = methodMeta(p.method);
+              const Icon = m.icon;
+              return (
+                <span
+                  key={p.id}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium ${m.color}`}
+                >
+                  <Icon className="w-3 h-3" />
+                  {formatFCFA(p.amount)}
+                  <span className="opacity-70 ml-1">
+                    {new Date(p.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}
+                  </span>
+                  {p.reference && <span className="opacity-60 italic ml-1">{p.reference}</span>}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
