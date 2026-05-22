@@ -27,14 +27,38 @@ function calcEntryPay(entry: {
   dailyWage?: string | null;
   taskAmount?: string | null;
   taskProgressPct?: number | null;
+  // PAR_M2
+  surfaceProduced?: string | number | null;
+  ratePerSqm?: string | number | null;
+  // PRESTATAIRE
+  contractAmount?: string | number | null;
+  weeklyProgressPct?: number | null;
 }) {
   if (entry.status === "ABSENT") return 0;
   const mode = entry.payMode || "PAR_JOUR";
+
+  // PAR_M2 : tarif au m² × surface produite ce jour
+  if (mode === "PAR_M2") {
+    const surf = parseFloat(String(entry.surfaceProduced || "0"));
+    const rate = parseFloat(String(entry.ratePerSqm || "0"));
+    return surf * rate;
+  }
+
+  // PRESTATAIRE : montant contrat × % évolution sur la semaine
+  // (Note : c'est un calcul "instantané" basé sur l'entrée. Le calcul cumulé
+  // sera fait côté payroll/week en sommant les entries.)
+  if (mode === "PRESTATAIRE") {
+    const total = parseFloat(String(entry.contractAmount || "0"));
+    const pct = entry.weeklyProgressPct ?? 0;
+    return total * (pct / 100);
+  }
+
   if (mode === "PAR_TACHE") {
     const taskAmt = parseFloat(entry.taskAmount || "0");
     const pct = entry.taskProgressPct ?? 100;
     return taskAmt * (pct / 100);
   }
+
   const wage = parseFloat(entry.dailyWage || "0");
   const hours = parseFloat(entry.hoursWorked || "0");
   const overtime = parseFloat(entry.overtimeHours || "0");
@@ -355,6 +379,10 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
           taskId: entry.taskId ? parseInt(entry.taskId) : null,
           taskAmount: entry.taskAmount?.toString(),
           taskProgressPct: entry.taskProgressPct ?? 100,
+          surfaceProduced: entry.surfaceProduced != null ? entry.surfaceProduced.toString() : null,
+          ratePerSqm: entry.ratePerSqm != null ? entry.ratePerSqm.toString() : null,
+          contractAmount: entry.contractAmount != null ? entry.contractAmount.toString() : null,
+          weeklyProgressPct: entry.weeklyProgressPct ?? null,
           amountDue: amountDue.toString(),
           totalPay: amountDue.toString(),
           notes: entry.notes,
@@ -460,6 +488,10 @@ router.put("/:id", authenticate, async (req: AuthRequest, res) => {
           taskId: entry.taskId ? parseInt(entry.taskId) : null,
           taskAmount: entry.taskAmount?.toString(),
           taskProgressPct: entry.taskProgressPct ?? 100,
+          surfaceProduced: entry.surfaceProduced != null ? entry.surfaceProduced.toString() : null,
+          ratePerSqm: entry.ratePerSqm != null ? entry.ratePerSqm.toString() : null,
+          contractAmount: entry.contractAmount != null ? entry.contractAmount.toString() : null,
+          weeklyProgressPct: entry.weeklyProgressPct ?? null,
           amountDue: amountDue.toString(),
           totalPay: amountDue.toString(),
           notes: entry.notes,
@@ -658,6 +690,10 @@ router.put("/:id/entries/:entryId", authenticate, async (req: AuthRequest, res) 
     if (body.taskId !== undefined) updates.taskId = body.taskId ? parseInt(body.taskId) : null;
     if (body.taskAmount !== undefined) updates.taskAmount = body.taskAmount?.toString();
     if (body.taskProgressPct !== undefined) updates.taskProgressPct = body.taskProgressPct;
+    if (body.surfaceProduced !== undefined) updates.surfaceProduced = body.surfaceProduced != null ? body.surfaceProduced.toString() : null;
+    if (body.ratePerSqm !== undefined) updates.ratePerSqm = body.ratePerSqm != null ? body.ratePerSqm.toString() : null;
+    if (body.contractAmount !== undefined) updates.contractAmount = body.contractAmount != null ? body.contractAmount.toString() : null;
+    if (body.weeklyProgressPct !== undefined) updates.weeklyProgressPct = body.weeklyProgressPct;
     if (body.notes !== undefined) updates.notes = body.notes;
     updates.amountDue = amountDue.toString();
     updates.totalPay = amountDue.toString();

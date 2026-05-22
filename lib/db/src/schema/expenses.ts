@@ -9,6 +9,7 @@ export const expenseStatusEnum = pgEnum("expense_status", ["EN_ATTENTE", "APPROU
 
 export const expensesTable = pgTable("expenses", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id"),
   projectId: integer("project_id").notNull().references(() => projectsTable.id),
   title: text("title").notNull(),
   category: expenseCategoryEnum("category").notNull(),

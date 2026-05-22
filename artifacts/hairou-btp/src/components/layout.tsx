@@ -59,17 +59,15 @@ export function AppLayout({ children, title }: LayoutProps) {
     { href: "/administration", label: "Administration", icon: Shield, badge: true },
   ];
 
+  // Chef de chantier — PAS de Finance ni Rapports (cache rentabilité / marché)
   const chefNav = [
     { href: "/dashboard", label: "Tableau de Bord", icon: LayoutDashboard },
     { href: "/projets", label: "Projets", icon: HardHat },
     { href: "/taches", label: "Tâches", icon: CheckSquare },
     { href: "/pointage", label: "Pointage", icon: ClipboardList },
-    { href: "/paie", label: "Paie hebdo", icon: Wallet },
     { href: "/personnel", label: "Personnel", icon: Users },
     { href: "/depenses", label: "Dépenses", icon: Receipt },
     { href: "/messages", label: "Messages", icon: MessageSquare },
-    { href: "/finance", label: "Finance", icon: TrendingUp },
-    { href: "/rapports", label: "Rapports", icon: BarChart3 },
   ];
 
   const ouvrierNav = [

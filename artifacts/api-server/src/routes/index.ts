@@ -13,6 +13,7 @@ import activityRouter from "./activity.js";
 import reclamationsRouter from "./reclamations.js";
 import presenceConfirmationsRouter from "./presenceConfirmations.js";
 import payrollRouter from "./payroll.js";
+import superRouter from "./super.js";
 
 const router: IRouter = Router();
 
@@ -31,5 +32,6 @@ router.use("/dashboard", activityRouter);
 router.use("/reclamations", reclamationsRouter);
 router.use("/presence-confirmations", presenceConfirmationsRouter);
 router.use("/payroll", payrollRouter);
+router.use("/super", superRouter);
 
 export default router;

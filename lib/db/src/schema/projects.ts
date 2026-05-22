@@ -7,6 +7,7 @@ export const projectStatusEnum = pgEnum("project_status", ["PLANIFIE", "EN_COURS
 
 export const projectsTable = pgTable("projects", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id"),
   name: text("name").notNull(),
   location: text("location"),
   clientName: text("client_name"),

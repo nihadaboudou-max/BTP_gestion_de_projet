@@ -6,8 +6,13 @@ export const contractTypeEnum = pgEnum("contract_type", ["CDI", "CDD", "JOURNALI
 
 export const personnelTable = pgTable("personnel", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id"),
   name: text("name").notNull(),
   trade: text("trade").notNull(),
+  // PRESTATAIRE = travailleur externe rémunéré au forfait selon avancement
+  isPrestataire: boolean("is_prestataire").notNull().default(false),
+  // Tarif par défaut au m² (si l'ouvrier est payé au rendement m²)
+  ratePerSqm: numeric("rate_per_sqm", { precision: 15, scale: 2 }),
   phone: text("phone"),
   idNumber: text("id_number"),
   emergencyContact: text("emergency_contact"),

@@ -75,8 +75,11 @@ export default function ProjectDetail() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentNote, setPaymentNote] = useState("");
 
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const isAdminOrChef = isAdmin || user?.role === "CHEF_CHANTIER";
+  const isComptable = user?.role === "COMPTABLE";
+  // Chef de chantier ne doit PAS voir le budget/marché ni la rentabilité (anti-frustration)
+  const canSeeFinances = isAdmin || isComptable || (user as any)?.canViewFinances === true;
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: project, isLoading: loadingProject } = useQuery({
@@ -185,7 +188,7 @@ export default function ProjectDetail() {
     { key: "tasks",     label: `Tâches (${taskStats.total})` },
     { key: "pointage",  label: `Pointage (${allSheets.length})` },
     { key: "expenses",  label: `Dépenses (${allExpenses.length})` },
-    ...(isAdminOrChef ? [{ key: "finance", label: "Finance" }] : []),
+    ...(canSeeFinances ? [{ key: "finance", label: "Finance" }] : []),
   ];
 
   return (
@@ -239,13 +242,20 @@ export default function ProjectDetail() {
           </div>
         </div>
 
-        {/* KPI row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <KpiCard icon={DollarSign} label="Marché / Budget" value={formatFCFA(totalBudget)} color="blue" />
-          <KpiCard icon={Wallet} label="Encaissé" value={formatFCFA(totalPaid)} color="green" />
-          <KpiCard icon={ReceiptText} label="Charges totales" value={formatFCFA(totalCharges)} color="orange" />
-          <KpiCard icon={profit >= 0 ? TrendingUp : TrendingDown} label="Résultat" value={formatFCFA(profit)} color={profit >= 0 ? "green" : "red"} />
-        </div>
+        {/* KPI row — masque budget/marché/résultat au chef de chantier (anti-frustration) */}
+        {canSeeFinances ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <KpiCard icon={DollarSign} label="Marché / Budget" value={formatFCFA(totalBudget)} color="blue" />
+            <KpiCard icon={Wallet} label="Encaissé" value={formatFCFA(totalPaid)} color="green" />
+            <KpiCard icon={ReceiptText} label="Charges totales" value={formatFCFA(totalCharges)} color="orange" />
+            <KpiCard icon={profit >= 0 ? TrendingUp : TrendingDown} label="Résultat" value={formatFCFA(profit)} color={profit >= 0 ? "green" : "red"} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
+            <KpiCard icon={ReceiptText} label="Dépenses déclarées" value={formatFCFA(totalCharges)} color="orange" />
+            <KpiCard icon={ClipboardList} label="Avancement" value={`${project.progress ?? 0}%`} color="blue" />
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 bg-muted/40 rounded-xl p-1 overflow-x-auto scrollbar-none">
@@ -446,7 +456,7 @@ export default function ProjectDetail() {
         )}
 
         {/* ── Tab: Finance (admin/chef only) ── */}
-        {activeTab === "finance" && isAdminOrChef && (
+        {activeTab === "finance" && canSeeFinances && (
           <div className="space-y-5">
             {/* Finance KPIs */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

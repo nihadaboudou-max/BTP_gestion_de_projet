@@ -18,6 +18,7 @@ export const paymentMethodEnum = pgEnum("payment_method", [
 
 export const paymentsTable = pgTable("payments", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id"),
   personnelId: integer("personnel_id").notNull().references(() => personnelTable.id),
   periodStart: date("period_start").notNull(),
   periodEnd: date("period_end").notNull(),

@@ -8,10 +8,15 @@ import { tasksTable } from "./tasks";
 
 export const pointageStatusEnum = pgEnum("pointage_status", ["BROUILLON", "SOUMISE", "APPROUVEE", "REJETEE", "ARCHIVEE"]);
 export const attendanceStatusEnum = pgEnum("attendance_status", ["PRESENT", "ABSENT", "DEMI_JOURNEE", "HEURE_SUP"]);
-export const payModeEnum = pgEnum("pay_mode", ["PAR_JOUR", "PAR_TACHE"]);
+// PAR_JOUR = tarif journalier classique
+// PAR_TACHE = forfait sur une tâche × % avancement
+// PRESTATAIRE = forfait prestataire payé chaque fin de semaine selon % évolution
+// PAR_M2 = tarif au m² × surface produite par jour
+export const payModeEnum = pgEnum("pay_mode", ["PAR_JOUR", "PAR_TACHE", "PRESTATAIRE", "PAR_M2"]);
 
 export const pointageSheetsTable = pgTable("pointage_sheets", {
   id: serial("id").primaryKey(),
+  companyId: integer("company_id"),
   projectId: integer("project_id").notNull().references(() => projectsTable.id),
   date: date("date").notNull(),
   chefId: integer("chef_id").notNull().references(() => usersTable.id),
@@ -55,6 +60,12 @@ export const pointageEntriesTable = pgTable("pointage_entries", {
   taskId: integer("task_id").references(() => tasksTable.id),
   taskAmount: numeric("task_amount", { precision: 15, scale: 2 }),
   taskProgressPct: integer("task_progress_pct").default(100),
+  // Champs pour le mode PAR_M2 : surface produite ce jour-là + tarif au m²
+  surfaceProduced: numeric("surface_produced", { precision: 10, scale: 2 }),
+  ratePerSqm: numeric("rate_per_sqm", { precision: 15, scale: 2 }),
+  // Champs pour le mode PRESTATAIRE : montant total contrat + % évolution semaine
+  contractAmount: numeric("contract_amount", { precision: 15, scale: 2 }),
+  weeklyProgressPct: integer("weekly_progress_pct"),
   amountDue: numeric("amount_due", { precision: 15, scale: 2 }),
   totalPay: numeric("total_pay", { precision: 15, scale: 2 }),
   notes: text("notes"),

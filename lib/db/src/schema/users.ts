@@ -1,12 +1,19 @@
-import { pgTable, serial, text, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, integer, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const userRoleEnum = pgEnum("user_role", ["ADMIN", "CHEF_CHANTIER", "OUVRIER"]);
+// SUPER_ADMIN = vous (propriétaire de la plateforme), invisible côté client
+// ADMIN = administrateur de l'entreprise cliente
+// COMPTABLE = comptable de l'entreprise (encaissements, finances)
+// CHEF_CHANTIER = chef sans accès aux montants du marché ni rentabilité
+// OUVRIER = ouvrier qui pointe et voit ses pointages
+export const userRoleEnum = pgEnum("user_role", ["SUPER_ADMIN", "ADMIN", "COMPTABLE", "CHEF_CHANTIER", "OUVRIER"]);
 export const userStatusEnum = pgEnum("user_status", ["PENDING", "APPROVED", "REJECTED"]);
 
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
+  // Multi-tenant : null pour les SUPER_ADMIN (transversal), sinon = entreprise du user
+  companyId: integer("company_id"),
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   phone: text("phone"),

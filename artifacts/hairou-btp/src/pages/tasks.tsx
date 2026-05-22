@@ -221,6 +221,54 @@ function TaskCard({ task, currentUserId, currentUserRole }: { task: any; current
           {updateMutation.isPending ? "..." : `→ ${statusConfig[nextStatus]?.label}`}
         </button>
       )}
+
+      {/* Personnel assigné (ouvrier ou prestataire) */}
+      {task.assignedPersonnelName && (
+        <div className="mt-1 flex items-center gap-1.5 text-[10px]">
+          <span className={`px-1.5 py-0.5 rounded ${task.assignedPersonnelIsPrestataire ? 'bg-purple-50 text-purple-700' : 'bg-secondary/10 text-secondary'}`}>
+            {task.assignedPersonnelIsPrestataire ? '👤 Prestataire' : '🔧 Ouvrier'}
+          </span>
+          <span className="text-muted-foreground truncate">{task.assignedPersonnelName}</span>
+        </div>
+      )}
+
+      {/* % avancement si défini */}
+      {typeof task.progressPct === "number" && task.progressPct > 0 && task.status !== "TERMINEE" && (
+        <div className="mt-2">
+          <div className="flex justify-between items-center text-[10px] text-muted-foreground mb-0.5">
+            <span>Avancement</span>
+            <span className="font-bold">{task.progressPct}%</span>
+          </div>
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${task.progressPct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {/* RÉOUVRIR si tâche marquée TERMINEE par erreur (admin/chef uniquement) */}
+      {task.status === "TERMINEE" && (currentUserRole === "ADMIN" || currentUserRole === "CHEF_CHANTIER") && (
+        <button
+          onClick={async () => {
+            if (!confirm("Réouvrir cette tâche ? Elle repassera en \"En cours\".")) return;
+            try {
+              const token = localStorage.getItem('hairou_token');
+              const BACKEND = (import.meta as any).env?.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
+              const res = await fetch(`${BACKEND}/api/tasks/${task.id}/uncomplete`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) throw new Error();
+              queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+              toast({ title: "Tâche réouverte", description: "Le statut est repassé à En cours" });
+            } catch {
+              toast({ title: "Erreur", description: "Impossible de réouvrir la tâche", variant: "destructive" });
+            }
+          }}
+          className="mt-1 w-full text-[11px] font-semibold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg py-1 transition-all"
+        >
+          ↩ Réouvrir (annuler Terminée)
+        </button>
+      )}
     </div>
   );
 }
@@ -231,18 +279,21 @@ function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
   const { user: currentUser } = useAuth();
   const [projects, setProjects] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [personnel, setPersonnel] = useState<any[]>([]);
 
-  // Charger projets et users directement depuis le backend
+  // Charger projets, users ET personnel (ouvriers/prestataires assignables)
   useEffect(() => {
-    const BACKEND = "https://btp-gestion-de-projet.onrender.com";
+    const BACKEND = (import.meta as any).env?.VITE_API_URL ?? "https://btp-gestion-de-projet.onrender.com";
     const token = localStorage.getItem("hairou_token");
     const headers = { Authorization: `Bearer ${token}` };
     Promise.all([
       fetch(`${BACKEND}/api/projects`, { headers }).then(r => r.json()),
       fetch(`${BACKEND}/api/users`, { headers }).then(r => r.json()),
-    ]).then(([p, u]) => {
+      fetch(`${BACKEND}/api/tasks/assignable-personnel`, { headers }).then(r => r.json()).catch(() => []),
+    ]).then(([p, u, pers]) => {
       setProjects(Array.isArray(p) ? p : []);
       setUsers(Array.isArray(u) ? u : []);
+      setPersonnel(Array.isArray(pers) ? pers : []);
     }).catch(() => {});
   }, []);
 
@@ -262,6 +313,8 @@ function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
     description: "",
     projectId: "",
     assignedToId: "",
+    assignedPersonnelId: "",      // Ouvrier ou prestataire affecté à la tâche
+    taskAmount: "",                // Montant total (pour prestataire %)
     priority: "NORMALE" as CreateTaskRequestPriority,
     dueDate: "",
   });
@@ -269,18 +322,27 @@ function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.projectId || !form.title) return;
-    createMutation.mutate({
-      data: {
-        title: form.title,
-        description: form.description || undefined,
-        projectId: parseInt(form.projectId),
-        assignedToId: form.assignedToId ? parseInt(form.assignedToId) : undefined,
-        priority: form.priority,
-        status: "A_FAIRE" as CreateTaskRequestStatus,
-        dueDate: form.dueDate || undefined,
-      }
-    });
+    const payload: any = {
+      title: form.title,
+      description: form.description || undefined,
+      projectId: parseInt(form.projectId),
+      assignedToId: form.assignedToId && form.assignedToId !== "none" ? parseInt(form.assignedToId) : undefined,
+      priority: form.priority,
+      status: "A_FAIRE" as CreateTaskRequestStatus,
+      dueDate: form.dueDate || undefined,
+    };
+    if (form.assignedPersonnelId && form.assignedPersonnelId !== "none") {
+      payload.assignedPersonnelId = parseInt(form.assignedPersonnelId);
+    }
+    if (form.taskAmount) {
+      payload.taskAmount = parseFloat(form.taskAmount);
+    }
+    createMutation.mutate({ data: payload });
   };
+
+  // Ouvriers normaux et prestataires séparés pour groupage visuel
+  const ouvriers = personnel.filter((p: any) => !p.isPrestataire);
+  const prestataires = personnel.filter((p: any) => p.isPrestataire);
 
   // Show all users as potential assignees; filter to workers for assignment
   const workers = users?.filter(u => u.role === "OUVRIER" || u.role === "CHEF_CHANTIER");
@@ -304,7 +366,7 @@ function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Assigner à</Label>
+          <Label>Compte utilisateur</Label>
           <Select value={form.assignedToId} onValueChange={v => setForm({ ...form, assignedToId: v })}>
             <SelectTrigger className="rounded-xl"><SelectValue placeholder="Optionnel" /></SelectTrigger>
             <SelectContent>
@@ -317,6 +379,64 @@ function CreateTaskForm({ onSuccess }: { onSuccess: () => void }) {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      {/* Affectation à un ouvrier ou prestataire de la base personnel */}
+      <div className="space-y-2">
+        <Label>Affecter à un ouvrier / prestataire</Label>
+        <Select value={form.assignedPersonnelId} onValueChange={v => setForm({ ...form, assignedPersonnelId: v })}>
+          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Choisir dans la base personnel..." /></SelectTrigger>
+          <SelectContent className="max-h-72">
+            <SelectItem value="none">— Aucun —</SelectItem>
+            {ouvriers.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">
+                  Ouvriers
+                </div>
+                {ouvriers.map((p: any) => (
+                  <SelectItem key={`o-${p.id}`} value={p.id.toString()}>
+                    {p.name} · {p.trade}{p.phone ? ` · ${p.phone}` : ""}
+                  </SelectItem>
+                ))}
+              </>
+            )}
+            {prestataires.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-bold text-purple-700 uppercase tracking-wide bg-purple-50">
+                  Prestataires (payés au %)
+                </div>
+                {prestataires.map((p: any) => (
+                  <SelectItem key={`p-${p.id}`} value={p.id.toString()}>
+                    👤 {p.name} · {p.trade}{p.phone ? ` · ${p.phone}` : ""}
+                  </SelectItem>
+                ))}
+              </>
+            )}
+          </SelectContent>
+        </Select>
+        {form.assignedPersonnelId && form.assignedPersonnelId !== "none" && (
+          <p className="text-[10px] text-muted-foreground">
+            {prestataires.find((p: any) => p.id.toString() === form.assignedPersonnelId)
+              ? "Prestataire : montant ci-dessous, paiement au % d'évolution chaque semaine."
+              : "Ouvrier : payé selon son tarif (jour, heure, m²) sur le pointage."}
+          </p>
+        )}
+      </div>
+
+      {/* Montant total — utile pour prestataires payés au % */}
+      <div className="space-y-2">
+        <Label>Montant total tâche / forfait (FCFA, optionnel)</Label>
+        <Input
+          type="number"
+          min="0"
+          value={form.taskAmount}
+          onChange={e => setForm({ ...form, taskAmount: e.target.value })}
+          placeholder="Ex: 500 000"
+          className="rounded-xl"
+        />
+        <p className="text-[10px] text-muted-foreground">
+          Pour un prestataire : le paiement hebdo = ce montant × % d'évolution déclaré chaque semaine.
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

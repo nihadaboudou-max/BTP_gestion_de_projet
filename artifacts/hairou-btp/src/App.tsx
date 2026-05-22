@@ -23,6 +23,8 @@ import Finance from "@/pages/finance";
 import ProjectDetail from "@/pages/project-detail";
 import Rapports from "@/pages/rapports";
 import Paie from "@/pages/paie";
+import SuperAdmin from "@/pages/super-admin";
+import RegisterCompany from "@/pages/register-company";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +58,12 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/register-company" component={RegisterCompany} />
+
+      {/* Route cachée super-admin — non listée dans la nav */}
+      <Route path="/control-panel">
+        {() => <ProtectedRoute component={SuperAdmin} />}
+      </Route>
       <Route path="/" component={() => <Redirect to="/dashboard" />} />
       
       <Route path="/dashboard">

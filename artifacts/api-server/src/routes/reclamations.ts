@@ -20,6 +20,7 @@ async function formatReclamation(r: typeof reclamationsTable.$inferSelect) {
 const typeLabels: Record<string, string> = {
   ERREUR_SALAIRE: "Erreur de salaire",
   ERREUR_PRESENCE: "Erreur de présence",
+  ERREUR_HEURES: "Erreur d'heures",
   AUTRE: "Autre",
 };
 
@@ -42,24 +43,34 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
 
 router.post("/", authenticate, async (req: AuthRequest, res) => {
   try {
-    const { sheetId, type, description } = req.body ?? {};
+    const { sheetId, entryId, type, description } = req.body ?? {};
     if (!type || !description) {
       res.status(400).json({ error: "Validation", message: "Type et description requis" });
       return;
     }
 
+    // Normalisation du type (tolère anciens et nouveaux libellés)
+    const VALID_TYPES = ["ERREUR_SALAIRE", "ERREUR_PRESENCE", "ERREUR_HEURES", "AUTRE"];
+    const safeType = VALID_TYPES.includes(type) ? type : "AUTRE";
+
+    // Récupérer la company du user
+    const { usersTable: usersT } = await import("@workspace/db");
+    const [u] = await db.select({ companyId: usersT.companyId }).from(usersT).where(eq(usersT.id, req.user!.userId)).limit(1);
+
     const [reclamation] = await db.insert(reclamationsTable).values({
+      companyId: u?.companyId ?? null,
       workerId: req.user!.userId,
       sheetId: sheetId ? parseInt(sheetId) : null,
-      type,
-      description,
+      entryId: entryId ? parseInt(entryId) : null,
+      type: safeType,
+      description: String(description).substring(0, 1000),
       status: "EN_ATTENTE",
     }).returning();
 
     await notifyAdmins(db, {
       type: "NEW_RECLAMATION",
       title: "Nouvelle réclamation",
-      message: `${typeLabels[type] || type} — ${description.substring(0, 80)}`,
+      message: `${typeLabels[safeType] || safeType} — ${description.substring(0, 80)}`,
       relatedId: reclamation.id,
       relatedType: "reclamation",
     });

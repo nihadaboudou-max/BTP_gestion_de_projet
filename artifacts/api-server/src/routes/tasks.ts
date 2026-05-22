@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { tasksTable, usersTable, projectsTable, activityLogsTable } from "@workspace/db";
+import { tasksTable, usersTable, projectsTable, personnelTable, activityLogsTable } from "@workspace/db";
 import { eq, and, or } from "drizzle-orm";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { createNotification, notifyAdmins, broadcastRefresh } from "../lib/notifications.js";
@@ -17,9 +17,52 @@ async function formatTask(task: typeof tasksTable.$inferSelect) {
     const [u] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, task.assignedToId)).limit(1);
     assignedToName = u?.name;
   }
+  let assignedPersonnelName: string | undefined;
+  let assignedPersonnelTrade: string | undefined;
+  let assignedPersonnelIsPrestataire: boolean = false;
+  if ((task as any).assignedPersonnelId) {
+    const [p] = await db.select({
+      name: personnelTable.name,
+      trade: personnelTable.trade,
+      isPrestataire: personnelTable.isPrestataire,
+    }).from(personnelTable).where(eq(personnelTable.id, (task as any).assignedPersonnelId)).limit(1);
+    assignedPersonnelName = p?.name;
+    assignedPersonnelTrade = p?.trade;
+    assignedPersonnelIsPrestataire = !!p?.isPrestataire;
+  }
   const [p] = await db.select({ name: projectsTable.name }).from(projectsTable).where(eq(projectsTable.id, task.projectId)).limit(1);
-  return { ...task, assignedToName, projectName: p?.name };
+  return {
+    ...task,
+    assignedToName,
+    assignedPersonnelName,
+    assignedPersonnelTrade,
+    assignedPersonnelIsPrestataire,
+    projectName: p?.name,
+  };
 }
+
+/**
+ * GET /api/tasks/assignable-personnel
+ * Liste tous les ouvriers + prestataires affectables à une tâche.
+ * Inclut un flag isPrestataire pour différencier dans le dropdown.
+ */
+router.get("/assignable-personnel", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const list = await db.select({
+      id: personnelTable.id,
+      name: personnelTable.name,
+      trade: personnelTable.trade,
+      phone: personnelTable.phone,
+      isPrestataire: personnelTable.isPrestataire,
+      dailyWage: personnelTable.dailyWage,
+    }).from(personnelTable)
+      .where(and(eq(personnelTable.isActive, true), eq(personnelTable.archived, false)));
+    res.json(list);
+  } catch (err) {
+    req.log.error({ err }, "Get assignable personnel error");
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
 
 router.get("/", authenticate, async (req: AuthRequest, res) => {
   try {
@@ -69,10 +112,13 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
       title,
       description: description || null,
       assignedToId: assignedToId ? parseInt(assignedToId) : null,
+      assignedPersonnelId: body.assignedPersonnelId ? parseInt(body.assignedPersonnelId) : null,
+      taskAmount: body.taskAmount != null ? body.taskAmount.toString() : null,
+      progressPct: body.progressPct != null ? parseInt(body.progressPct) : 0,
       dueDate: nullDate(body.dueDate),
       priority: priority || "NORMALE",
       status: status || "A_FAIRE",
-    }).returning();
+    } as any).returning();
 
     await db.insert(activityLogsTable).values({
       userId: req.user!.userId,
@@ -126,13 +172,21 @@ router.put("/:id", authenticate, async (req: AuthRequest, res) => {
       return;
     }
 
-    const updates: Partial<typeof tasksTable.$inferInsert> = {};
+    const updates: any = {};
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
     if (assignedToId !== undefined) updates.assignedToId = assignedToId ? parseInt(assignedToId) : null;
+    if (body.assignedPersonnelId !== undefined) updates.assignedPersonnelId = body.assignedPersonnelId ? parseInt(body.assignedPersonnelId) : null;
+    if (body.taskAmount !== undefined) updates.taskAmount = body.taskAmount != null ? body.taskAmount.toString() : null;
+    if (body.progressPct !== undefined) updates.progressPct = parseInt(body.progressPct);
     if (body.dueDate !== undefined) updates.dueDate = nullDate(body.dueDate);
     if (priority !== undefined) updates.priority = priority;
-    if (status !== undefined) updates.status = status;
+    if (status !== undefined) {
+      updates.status = status;
+      if (status === "TERMINEE" && existing.status !== "TERMINEE") {
+        updates.completedAt = new Date();
+      }
+    }
 
     const wasAssigned = existing.assignedToId;
     const newAssignee = updates.assignedToId;
@@ -228,6 +282,53 @@ router.post("/:id/confirm", authenticate, async (req: AuthRequest, res) => {
   } catch (err) {
     req.log.error({ err }, "Confirm task error");
     res.status(500).json({ error: "Erreur serveur", message: "Erreur lors de la confirmation de la tâche" });
+  }
+});
+
+/**
+ * POST /api/tasks/:id/uncomplete
+ * Réouvre une tâche marquée TERMINEE par erreur. Repasse en EN_COURS.
+ * Accessible aux ADMIN, CHEF_CHANTIER ou à l'assigné de la tâche.
+ */
+router.post("/:id/uncomplete", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const userId = req.user!.userId;
+    const role = req.user!.role;
+
+    const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, id)).limit(1);
+    if (!task) {
+      res.status(404).json({ error: "Non trouvé", message: "Tâche non trouvée" });
+      return;
+    }
+    if (task.status !== "TERMINEE") {
+      res.status(400).json({ error: "Validation", message: "Cette tâche n'est pas marquée comme terminée" });
+      return;
+    }
+    if (role !== "ADMIN" && role !== "CHEF_CHANTIER" && task.assignedToId !== userId) {
+      res.status(403).json({ error: "Accès refusé", message: "Permission insuffisante" });
+      return;
+    }
+
+    const [updated] = await db.update(tasksTable)
+      .set({ status: "EN_COURS", completedAt: null, updatedAt: new Date() } as any)
+      .where(eq(tasksTable.id, id))
+      .returning();
+
+    await db.insert(activityLogsTable).values({
+      userId,
+      action: "UNCOMPLETE_TASK",
+      details: `Annulation du statut TERMINEE pour la tâche "${task.title}"`,
+      entityType: "task",
+      entityId: id,
+    });
+
+    broadcastRefresh("refresh:tasks");
+    const formatted = await formatTask(updated);
+    res.json(formatted);
+  } catch (err) {
+    req.log.error({ err }, "Uncomplete task error");
+    res.status(500).json({ error: "Erreur serveur" });
   }
 });
 

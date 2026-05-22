@@ -48,8 +48,22 @@ function calcAmountDue(entry: {
   dailyWage?: number | null;
   taskAmount?: number | null;
   taskProgressPct?: number | null;
+  surfaceProduced?: number | null;
+  ratePerSqm?: number | null;
+  contractAmount?: number | null;
+  weeklyProgressPct?: number | null;
 }): number {
   if (entry.status === "ABSENT") return 0;
+  if (entry.payMode === "PAR_M2") {
+    const s = entry.surfaceProduced || 0;
+    const r = entry.ratePerSqm || 0;
+    return s * r;
+  }
+  if (entry.payMode === "PRESTATAIRE") {
+    const total = entry.contractAmount || 0;
+    const pct = entry.weeklyProgressPct ?? 0;
+    return total * (pct / 100);
+  }
   if (entry.payMode === "PAR_TACHE") {
     const amt = entry.taskAmount || 0;
     const pct = entry.taskProgressPct ?? 100;
@@ -292,6 +306,11 @@ export default function PointageDetail() {
           taskId: merged.taskId,
           taskAmount: merged.taskAmount,
           taskProgressPct: merged.taskProgressPct ?? 100,
+          // Nouveaux modes
+          surfaceProduced: merged.surfaceProduced,
+          ratePerSqm: merged.ratePerSqm,
+          contractAmount: merged.contractAmount,
+          weeklyProgressPct: merged.weeklyProgressPct,
           notes: merged.notes,
         };
       });
@@ -817,9 +836,16 @@ export default function PointageDetail() {
                             <SelectContent>
                               <SelectItem value="PAR_JOUR">Par jour</SelectItem>
                               <SelectItem value="PAR_TACHE">Par tâche</SelectItem>
+                              <SelectItem value="PAR_M2">Au m² (rendement)</SelectItem>
+                              <SelectItem value="PRESTATAIRE">Prestataire (% évolution)</SelectItem>
                             </SelectContent>
                           </Select>
-                        ) : <p className="text-sm font-medium">{e.payMode === "PAR_TACHE" ? "Par tâche" : "Par jour"}</p>}
+                        ) : <p className="text-sm font-medium">
+                          {e.payMode === "PAR_TACHE" ? "Par tâche"
+                            : e.payMode === "PAR_M2" ? "Au m²"
+                            : e.payMode === "PRESTATAIRE" ? "Prestataire"
+                            : "Par jour"}
+                        </p>}
                       </div>
 
                       <div className="space-y-1.5">
@@ -874,6 +900,40 @@ export default function PointageDetail() {
                             {isEditing ? (
                               <Input type="number" min="0" max="100" value={e.taskProgressPct ?? 100} onChange={ev => updateEntry(entry.id, "taskProgressPct", parseInt(ev.target.value) || 100)} className="h-9 rounded-xl text-sm" />
                             ) : <p className="text-sm font-medium">{e.taskProgressPct ?? 100}%</p>}
+                          </div>
+                        </>
+                      )}
+
+                      {e.payMode === "PAR_M2" && (
+                        <>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Surface produite (m²)</Label>
+                            {isEditing ? (
+                              <Input type="number" step="0.01" min="0" value={e.surfaceProduced || ""} onChange={ev => updateEntry(entry.id, "surfaceProduced", parseFloat(ev.target.value) || 0)} className="h-9 rounded-xl text-sm" placeholder="0.00" />
+                            ) : <p className="text-sm font-medium">{e.surfaceProduced ? `${e.surfaceProduced} m²` : "—"}</p>}
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Tarif au m² (FCFA)</Label>
+                            {isEditing ? (
+                              <Input type="number" min="0" value={e.ratePerSqm || ""} onChange={ev => updateEntry(entry.id, "ratePerSqm", parseFloat(ev.target.value) || 0)} className="h-9 rounded-xl text-sm" placeholder="Tarif par défaut sur fiche ouvrier" />
+                            ) : <p className="text-sm font-medium">{e.ratePerSqm ? formatFCFA(e.ratePerSqm) : "—"}</p>}
+                          </div>
+                        </>
+                      )}
+
+                      {e.payMode === "PRESTATAIRE" && (
+                        <>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Montant total contrat (FCFA)</Label>
+                            {isEditing ? (
+                              <Input type="number" min="0" value={e.contractAmount || ""} onChange={ev => updateEntry(entry.id, "contractAmount", parseFloat(ev.target.value) || 0)} className="h-9 rounded-xl text-sm" />
+                            ) : <p className="text-sm font-medium">{e.contractAmount ? formatFCFA(e.contractAmount) : "—"}</p>}
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">% d'évolution cette semaine</Label>
+                            {isEditing ? (
+                              <Input type="number" min="0" max="100" value={e.weeklyProgressPct ?? 0} onChange={ev => updateEntry(entry.id, "weeklyProgressPct", parseInt(ev.target.value) || 0)} className="h-9 rounded-xl text-sm" />
+                            ) : <p className="text-sm font-medium">{e.weeklyProgressPct ?? 0}%</p>}
                           </div>
                         </>
                       )}

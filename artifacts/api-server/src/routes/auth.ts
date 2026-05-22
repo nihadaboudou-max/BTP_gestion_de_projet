@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
+import { usersTable, companiesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { authenticate, comparePassword, generateTokens, hashPassword, verifyRefreshToken, type AuthRequest } from "../lib/auth.js";
 import { activityLogsTable } from "@workspace/db";
@@ -11,12 +11,22 @@ const router = Router();
 function formatUser(user: typeof usersTable.$inferSelect) {
   return {
     id: user.id,
+    companyId: (user as any).companyId ?? null,
     email: user.email,
     name: user.name,
     phone: user.phone,
     role: user.role,
     status: user.status,
     isActive: user.isActive,
+    // Compatibilité avec l'ancien front : permissions à plat
+    canAddWorkers: user.canAddWorkers,
+    canDeleteWorkers: user.canDeleteWorkers,
+    canEditWorkers: user.canEditWorkers,
+    canAddExpenses: user.canAddExpenses,
+    canDeleteExpenses: user.canDeleteExpenses,
+    canAddProjects: user.canAddProjects,
+    canViewFinances: user.canViewFinances,
+    canManagePointage: user.canManagePointage,
     permissions: {
       canAddWorkers: user.canAddWorkers,
       canDeleteWorkers: user.canDeleteWorkers,
@@ -63,7 +73,12 @@ router.post("/login", async (req, res) => {
       return;
     }
 
-    const { token, refreshToken } = generateTokens({ userId: user.id, email: user.email, role: user.role });
+    const { token, refreshToken } = generateTokens({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      companyId: (user as any).companyId ?? null,
+    });
     await db.update(usersTable).set({ refreshToken }).where(eq(usersTable.id, user.id));
 
     await db.insert(activityLogsTable).values({
@@ -130,6 +145,79 @@ router.post("/register", async (req, res) => {
   }
 });
 
+/**
+ * POST /auth/register-company
+ * Inscription publique d'une entreprise. Crée company + admin associé en TRIAL.
+ */
+router.post("/register-company", async (req, res) => {
+  try {
+    const { companyName, ownerName, email, password, phone, country } = req.body ?? {};
+    if (!companyName || !ownerName || !email || !password) {
+      res.status(400).json({ error: "Validation", message: "Nom entreprise, nom propriétaire, email et mot de passe requis" });
+      return;
+    }
+    if (password.length < 8) {
+      res.status(400).json({ error: "Validation", message: "Mot de passe trop court (min 8 caractères)" });
+      return;
+    }
+
+    const slug = companyName.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 50) + "-" + Date.now().toString(36);
+
+    const [existingEmail] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email)).limit(1);
+    if (existingEmail) {
+      res.status(409).json({ error: "Conflit", message: "Cet email est déjà utilisé" });
+      return;
+    }
+
+    const [company] = await db.insert(companiesTable).values({
+      name: companyName,
+      slug,
+      ownerEmail: email,
+      phone: phone || null,
+      country: country || "SN",
+      plan: "FREE",
+      status: "TRIAL",
+      trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours
+    }).returning();
+
+    const passwordHash = await hashPassword(password);
+    const [admin] = await db.insert(usersTable).values({
+      companyId: company.id,
+      email,
+      name: ownerName,
+      phone: phone || null,
+      passwordHash,
+      role: "ADMIN",
+      status: "APPROVED",
+      isActive: true,
+      canAddWorkers: true,
+      canDeleteWorkers: true,
+      canEditWorkers: true,
+      canAddExpenses: true,
+      canDeleteExpenses: true,
+      canAddProjects: true,
+      canViewFinances: true,
+      canManagePointage: true,
+    }).returning();
+
+    const { token, refreshToken } = generateTokens({
+      userId: admin.id, email: admin.email, role: admin.role,
+      companyId: company.id,
+    });
+    await db.update(usersTable).set({ refreshToken }).where(eq(usersTable.id, admin.id));
+
+    res.status(201).json({
+      token, refreshToken,
+      user: formatUser(admin),
+      company: { id: company.id, name: company.name, slug: company.slug, plan: company.plan, status: company.status },
+    });
+  } catch (err) {
+    req.log.error({ err }, "Register company error");
+    res.status(500).json({ error: "Erreur serveur", message: "Erreur lors de la création de l'entreprise" });
+  }
+});
+
 router.get("/me", authenticate, async (req: AuthRequest, res) => {
   try {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
@@ -166,7 +254,12 @@ router.post("/refresh", async (req, res) => {
       return;
     }
 
-    const tokens = generateTokens({ userId: user.id, email: user.email, role: user.role });
+    const tokens = generateTokens({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      companyId: (user as any).companyId ?? null,
+    });
     await db.update(usersTable).set({ refreshToken: tokens.refreshToken }).where(eq(usersTable.id, user.id));
 
     res.json({ ...tokens, user: formatUser(user) });
